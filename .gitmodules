@@ -1,0 +1,3 @@
+[submodule "vulkan_raw"]
+	path = vulkan_raw
+	url = https://github.com/StreamVersus/vulkan_raw

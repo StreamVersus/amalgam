@@ -1,0 +1,14 @@
+todo
+rewrite vbos to build vertex data in stag buffer, rather than copy it from stack
+
+memory wrapper for cleanup on drop
+dont forget to pass model matrix and texture indexes
+generate mipmaps
+lighting
+
+create initialization stages(to parallel)
+
+quantization
+compression(drako + astc + astc-to-bn7 fallback)
+
+add binary of shaders to caches

@@ -1,0 +1,14 @@
+[profile.release]
+opt-level = 3
+codegen-units = 1
+lto = "fat"
+panic = "abort"
+overflow-checks = false
+debug-assertions = false
+strip = true
+
+[build]
+rustflags = [
+    "-C", "target-cpu=native",
+]
+rustc-wrapper = "sccache"

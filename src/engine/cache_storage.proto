@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+message Cache {
+    message DeviceInfo{
+        uint32 vendor_id = 1;
+        uint32 device_id = 2;
+        uint32 driver_version = 3;
+    }
+
+    DeviceInfo device = 1;
+    bytes cache_blob = 2;
+    uint32 version = 3;
+    reserved 4,5;
+}
