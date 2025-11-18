@@ -2,8 +2,11 @@ use crate::engine::caches::{build_device_info, Cache};
 use crate::vulkan::func::{Destructible, Vulkan};
 use crate::vulkan::r#impl::pipelines::GraphicsPipelineCreateInfo;
 use prost::Message;
+use std::cmp::max;
 use std::fs;
 use std::fs::File;
+use std::sync::Arc;
+use std::thread::available_parallelism;
 use vulkan_raw::{VkPipeline, VkPipelineCache};
 
 const FILE_PATH: &str = "cache.storage";
@@ -37,42 +40,46 @@ pub fn create_pipelines_multithreaded(use_caches: bool, pipeline_infos: Vec<Grap
         cache_data = Cache::default();
     };
 
-    let mut caches: Vec<VkPipelineCache> = Vec::with_capacity(pipeline_infos.len());
-    for _ in pipeline_infos.iter() {
-        caches.push(vulkan.create_pipeline_cache(cache_data.cache_blob.as_slice()));
-    };
+    let thread_count = available_parallelism()
+        .map(|x| x.get())
+        .map(|x| max(x, pipeline_infos.len()))
+        .unwrap_or(1);
+
+    let mut main_pool = CachePool::new(&[], vulkan.clone());
     let pipelines = std::thread::scope(|s| {
-        let handles: Vec<_> = pipeline_infos.into_iter()
-            .zip(caches.iter())
-            .map(|(info, &cache)| {
-                let vulkan = &vulkan;
+        let handles: Vec<_> = pipeline_infos.as_slice()
+            .chunks(thread_count)
+            .into_iter()
+            .map(|info_chunk| {
+                let mut cache_pool = CachePool::new(&cache_data.cache_blob, vulkan.clone());
                 s.spawn(move || {
-                    vulkan.create_graphic_pipelines(vec![info], cache)
+                    let cache = cache_pool.pull();
+                    let pipelines = vulkan.create_graphic_pipelines(info_chunk, cache);
+                    cache_pool.ret(cache);
+                    
+                    (pipelines, cache_pool)
                 })
             })
             .collect();
 
-        let mut pipelines = Vec::new();
+        let mut pipelines = Vec::with_capacity(handles.len());
         for handle in handles {
-            let mut pipeline_vec = handle.join().unwrap();
+            let (mut pipeline_vec, cache_pool) = handle.join().unwrap();
+            main_pool.merge(cache_pool);
             pipelines.append(&mut pipeline_vec);
         }
         pipelines
     });
 
-    let dst_cache = caches.pop().unwrap();
-    if !caches.is_empty() {
-        vulkan.merge_pipeline_caches(caches, &dst_cache);
-    };
-
+    let final_cache = main_pool.yield_result();
     if use_caches {
-        cache_data.cache_blob = vulkan.get_data_from_pipeline_cache(dst_cache);
+        cache_data.cache_blob = vulkan.get_data_from_pipeline_cache(final_cache);
         let proto_bytes = cache_data.encode_to_vec();
         let compressed_data = compression_algo(&proto_bytes);
 
         fs::write(FILE_PATH, compressed_data.as_slice()).expect("Unable to write file");
     }
-    dst_cache.destroy(vulkan);
+    final_cache.destroy(vulkan);
 
     pipelines
 }
@@ -91,3 +98,39 @@ pub fn create_new_cache(vulkan: &Vulkan) -> Cache {
 
     cache_data
 }
+
+struct CachePool {
+    caches: Vec<VkPipelineCache>,
+    cache_blob: Arc<[u8]>,
+    vulkan: Arc<Vulkan>,
+}
+
+impl CachePool {
+    pub fn new(cache_blob: &[u8], vulkan: Vulkan) -> Self {
+        Self {
+            caches: vec![],
+            cache_blob: Arc::from(cache_blob),
+            vulkan: Arc::new(vulkan),
+        }
+    }
+
+    pub fn merge(&mut self, other: CachePool) {
+        self.caches.extend(other.caches);
+    }
+    pub fn pull(&mut self) -> VkPipelineCache {
+        self.caches.pop().unwrap_or_else(|| self.vulkan.create_pipeline_cache(&self.cache_blob))
+    }
+
+    pub fn ret(&mut self, cache: VkPipelineCache) {
+        self.caches.push(cache);
+    }
+
+    pub fn yield_result(mut self) -> VkPipelineCache {
+        let dst_cache = self.caches.pop().unwrap();
+        if !self.caches.is_empty() {
+            self.vulkan.merge_pipeline_caches(self.caches, &dst_cache);
+        }
+        dst_cache
+    }
+}
+

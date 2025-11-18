@@ -165,7 +165,7 @@ impl Vulkan {
         assert_eq!(result, VkResult::SUCCESS);
     }
 
-    pub fn create_graphic_pipelines(&self, pipeline_infos: Vec<GraphicsPipelineCreateInfo>, cache: VkPipelineCache) -> Vec<VkPipeline> {
+    pub fn create_graphic_pipelines(&self, pipeline_infos: &[GraphicsPipelineCreateInfo], cache: VkPipelineCache) -> Vec<VkPipeline> {
         let mut graphic_pipelines = Vec::with_capacity(pipeline_infos.len());
         let spare = graphic_pipelines.spare_capacity_mut();
 
