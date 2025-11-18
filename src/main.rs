@@ -13,7 +13,7 @@ fn main() {
         width: 1200,
         height: 900,
         vsync: false,
-        msaa: VkSampleCountFlags::SC_1_BIT,
+        msaa: VkSampleCountFlags::SC_8_BIT,
         callbacks: Callbacks {
             render: RenderLoop::render_loop,
             render_init: RenderLoop::init,

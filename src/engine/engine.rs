@@ -150,19 +150,25 @@ impl PerImageResource {
         let mut device_task = AllocationTask::device();
         device_task.add_allocatable_ref(depth_image);
 
-        let (color_msaa_image, color_msaa_view) = if sample_rate != VkSampleCountFlags::SC_1_BIT {
+        let color_msaa_image = if sample_rate != VkSampleCountFlags::SC_1_BIT {
             let color_msaa_image = vulkan.create_image(format, VkImageType::IT_2D, false, 1, 1, extent, sample_rate, ImageUsage::default().color_attachment(true));
             device_task.add_allocatable_ref(color_msaa_image);
 
-            let color_msaa_view = vulkan.create_image_view(&color_msaa_image, VkImageViewType::IVT_2D, format, VkImageAspectFlags::COLOR_BIT);
-            (Some(VkDestroy::new(color_msaa_image, vulkan)), Some(VkDestroy::new(color_msaa_view, vulkan)))
+            Some(VkDestroy::new(color_msaa_image, vulkan))
         } else {
-            (None, None)
+            None
         };
         let memory = device_task.allocate_all(vulkan).get_all_memory_objects();
         let memory_storage = memory.into_iter().map(|memory| {
             VkDestroy::new(memory, vulkan)
         }).collect();
+
+        let color_msaa_view = if sample_rate != VkSampleCountFlags::SC_1_BIT {
+            let color_msaa_view = vulkan.create_image_view(color_msaa_image.as_ref().unwrap().get(), VkImageViewType::IVT_2D, format, VkImageAspectFlags::COLOR_BIT);
+            Some(VkDestroy::new(color_msaa_view, vulkan))
+        } else {
+            None
+        };
 
         let depth_image_view = vulkan.create_image_view(&depth_image, VkImageViewType::IVT_2D, VkFormat::D32_SFLOAT, VkImageAspectFlags::DEPTH_BIT);
         let attachments = if sample_rate != VkSampleCountFlags::SC_1_BIT {
