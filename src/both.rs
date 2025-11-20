@@ -80,7 +80,7 @@ impl RenderLoop {
         let (preset, layout) = preset_graphic_pipeline(vulkan, swapchain.width, swapchain.height, render_pass, 0, &self.scene.descriptor_layouts);
         self.graph_pipeline_layout = VkDestroy::new(layout, vulkan);
 
-        let create_info = preset_multisample(preset, supported_samples, self.settings.msaa);
+        let create_info = preset_multisample(preset, supported_samples, settings.msaa);
         let graph_pipeline = create_pipelines_multithreaded(true, vec![create_info], vulkan)[0];
         self.graph_pipeline = VkDestroy::new(graph_pipeline, vulkan);
 

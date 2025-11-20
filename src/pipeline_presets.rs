@@ -133,13 +133,13 @@ pub fn preset_graphic_pipeline(vulkan: &Vulkan, width: u32, height: u32, render_
 
 pub fn preset_multisample(main_pipeline: GraphicsPipelineCreateInfo, samples: VkSampleCountFlags, cap: VkSampleCountFlags) -> GraphicsPipelineCreateInfo {
     GraphicsPipelineCreateInfo {
-        flags: main_pipeline.flags.clone(),
-        stages: main_pipeline.stages.clone(),
-        vertex_input_state: main_pipeline.vertex_input_state.clone(),
-        input_assembly_state: main_pipeline.input_assembly_state.clone(),
-        tessellation_state: main_pipeline.tessellation_state.clone(),
-        viewport_state: main_pipeline.viewport_state.clone(),
-        rasterization_state: main_pipeline.rasterization_state.clone(),
+        flags: main_pipeline.flags,
+        stages: main_pipeline.stages,
+        vertex_input_state: main_pipeline.vertex_input_state,
+        input_assembly_state: main_pipeline.input_assembly_state,
+        tessellation_state: main_pipeline.tessellation_state,
+        viewport_state: main_pipeline.viewport_state,
+        rasterization_state: main_pipeline.rasterization_state,
         multisample_state: Some(PipelineMultisampleStateCreateInfo {
             flags: Default::default(),
             rasterization_samples: resolve_highest_multisampling(samples, cap),
@@ -149,100 +149,49 @@ pub fn preset_multisample(main_pipeline: GraphicsPipelineCreateInfo, samples: Vk
             alpha_to_coverage_enable: Default::default(),
             alpha_to_one_enable: Default::default(),
         }),
-        depth_stencil_state: main_pipeline.depth_stencil_state.clone(),
-        color_blend_state: main_pipeline.color_blend_state.clone(),
-        dynamic_state: main_pipeline.dynamic_state.clone(),
-        layout: main_pipeline.layout.clone(),
-        render_pass: main_pipeline.render_pass.clone(),
-        subpass: main_pipeline.subpass.clone(),
-        base_pipeline_handle: main_pipeline.base_pipeline_handle.clone(),
-        base_pipeline_index: main_pipeline.base_pipeline_index.clone(),
+        depth_stencil_state: main_pipeline.depth_stencil_state,
+        color_blend_state: main_pipeline.color_blend_state,
+        dynamic_state: main_pipeline.dynamic_state,
+        layout: main_pipeline.layout,
+        render_pass: main_pipeline.render_pass,
+        subpass: main_pipeline.subpass,
+        base_pipeline_handle: main_pipeline.base_pipeline_handle,
+        base_pipeline_index: main_pipeline.base_pipeline_index,
     }
 }
 
-fn resolve_supported_multisampling(supported_samples: VkSampleCountFlagBits, cap: VkSampleCountFlagBits) -> Vec<VkSampleCountFlags> {
-    let mut ret_vec: Vec<VkSampleCountFlags> = vec![];
-    if supported_samples.contains(VkSampleCountFlagBits::SC_2_BIT) {
-        ret_vec.push(VkSampleCountFlags::SC_2_BIT);
-        if cap == VkSampleCountFlags::SC_2_BIT {
-            return ret_vec;
-        }
-    }
-    if supported_samples.contains(VkSampleCountFlagBits::SC_4_BIT) {
-        ret_vec.push(VkSampleCountFlags::SC_4_BIT);
-        if cap == VkSampleCountFlags::SC_4_BIT {
-            return ret_vec;
-        }
-    }
-    if supported_samples.contains(VkSampleCountFlagBits::SC_8_BIT) {
-        ret_vec.push(VkSampleCountFlags::SC_8_BIT);
-        if cap == VkSampleCountFlags::SC_8_BIT {
-            return ret_vec;
-        }
-    }
-    if supported_samples.contains(VkSampleCountFlagBits::SC_16_BIT) {
-        ret_vec.push(VkSampleCountFlags::SC_16_BIT);
-        if cap == VkSampleCountFlags::SC_16_BIT {
-            return ret_vec;
-        }
-    }
-    if supported_samples.contains(VkSampleCountFlagBits::SC_32_BIT) {
-        ret_vec.push(VkSampleCountFlags::SC_32_BIT);
-        if cap == VkSampleCountFlags::SC_32_BIT {
-            return ret_vec;
-        }
-    }
-    if supported_samples.contains(VkSampleCountFlagBits::SC_64_BIT) {
-        ret_vec.push(VkSampleCountFlags::SC_64_BIT);
-        if cap == VkSampleCountFlags::SC_64_BIT {
-            return ret_vec;
-        }
-    }
+const SAMPLE_COUNTS: &[VkSampleCountFlags] = &[
+    VkSampleCountFlags::SC_2_BIT,
+    VkSampleCountFlags::SC_4_BIT,
+    VkSampleCountFlags::SC_8_BIT,
+    VkSampleCountFlags::SC_16_BIT,
+    VkSampleCountFlags::SC_32_BIT,
+    VkSampleCountFlags::SC_64_BIT,
+];
 
+fn resolve_supported_multisampling(supported_samples: VkSampleCountFlagBits, cap: VkSampleCountFlagBits) -> Vec<VkSampleCountFlags> {
+    let mut ret_vec = Vec::new();
+    for &sample in SAMPLE_COUNTS {
+        if supported_samples.contains(sample) {
+            ret_vec.push(sample);
+            if cap == sample {
+                break;
+            }
+        }
+    }
     ret_vec
 }
 
 pub fn resolve_highest_multisampling(supported_samples: VkSampleCountFlagBits, cap: VkSampleCountFlagBits) -> VkSampleCountFlags {
-    let mut buffer: VkSampleCountFlags = VkSampleCountFlags::SC_1_BIT;
-    if cap == buffer {
-        return buffer;
+    if cap == VkSampleCountFlags::SC_1_BIT {
+        return VkSampleCountFlags::SC_1_BIT;
     }
-    if supported_samples.contains(VkSampleCountFlagBits::SC_2_BIT) {
-        buffer = VkSampleCountFlags::SC_2_BIT;
-        if cap == buffer {
-            return buffer;
-        }
-    }
-    else if supported_samples.contains(VkSampleCountFlagBits::SC_4_BIT) {
-        buffer = VkSampleCountFlags::SC_4_BIT;
-        if cap == buffer {
-            return buffer;
-        }
-    }
-    else if supported_samples.contains(VkSampleCountFlagBits::SC_8_BIT) {
-        buffer = VkSampleCountFlags::SC_8_BIT;
-        if cap == buffer {
-            return buffer;
-        }
-    }
-    else if supported_samples.contains(VkSampleCountFlagBits::SC_16_BIT) {
-        buffer = VkSampleCountFlags::SC_16_BIT;
-        if cap == buffer {
-            return buffer;
-        }
-    }
-    else if supported_samples.contains(VkSampleCountFlagBits::SC_32_BIT) {
-        buffer = VkSampleCountFlags::SC_32_BIT;
-        if cap == buffer {
-            return buffer;
-        }
-    }
-    else if supported_samples.contains(VkSampleCountFlagBits::SC_64_BIT) {
-        buffer = VkSampleCountFlags::SC_64_BIT;
-        if cap == buffer {
-            return buffer;
+
+    for &sample in SAMPLE_COUNTS.iter().rev() {
+        if sample <= cap && supported_samples.contains(sample) {
+            return sample;
         }
     }
 
-    buffer
+    VkSampleCountFlags::SC_1_BIT
 }

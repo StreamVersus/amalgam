@@ -4,7 +4,7 @@ use crate::vulkan::gltf::gltf_struct::{Attributes, Gltf};
 use crate::vulkan::r#impl::command_buffer::RecordingInfo;
 use crate::vulkan::r#impl::descriptors::{BufferDescriptorInfo, DescriptorSetInfo, ImageDescriptorInfo};
 use crate::vulkan::r#impl::image::ImageTransition;
-use crate::vulkan::r#impl::memory::{AllocationTask, MemoryInfo, VkDestroy};
+use crate::vulkan::r#impl::memory::{AllocationInfo, AllocationTask, MemoryInfo, VkDestroy};
 use crate::vulkan::r#impl::sampler::SamplerInfo;
 use crate::vulkan::utils::{build_pool_size, BufferUsage, ImageUsage};
 use image::ImageReader;
@@ -25,7 +25,7 @@ pub struct Scene {
     pub indirect_buffer: VkDestroy<VkBuffer>,
 
     pub idx_size: u64,
-    pub indirect_buffer_size: u64,
+    pub parameters_size: u64,
 
     pub parameter_count: u32,
     parameters: Vec<IndirectParameters>,
@@ -197,7 +197,7 @@ impl Scene {
             let amount = *mesh_renders.get(&node.mesh.id).unwrap_or(&0);
             mesh_renders.insert(node.mesh.id, amount + 1);
         });
-        let mut indirect_parameters: Vec<IndirectParameters> = Vec::with_capacity(gltf.meshes.len());
+        let mut parameters: Vec<IndirectParameters> = Vec::with_capacity(gltf.meshes.len());
 
         let mut index_offset = 0;
         let mut vertex_offset = 0;
@@ -209,12 +209,12 @@ impl Scene {
 
             let json_mesh = &gltf.meshes[i as usize];
             mesh.primitives.iter().enumerate().for_each(|(i, primitive)| {
-                indirect_parameters.push(IndirectParameters {
+                parameters.push(IndirectParameters {
                     index_count: primitive.indices,
                     instance_count: instances,
-                    first_index: index_offset.clone(),
-                    vertex_offset: vertex_offset.clone(),
-                    first_instance: instance_offset.clone(),
+                    first_index: index_offset,
+                    vertex_offset,
+                    first_instance: instance_offset,
                 });
 
                 index_offset += primitive.indices;
@@ -247,7 +247,7 @@ impl Scene {
         }).collect();
 
         let mut device_task = AllocationTask::device();
-        let images = gltf.images.iter().map(|image_info| {
+        let texture_images = gltf.images.iter().map(|image_info| {
             let format = ImageFormat::from(image_info.mimeType.clone()).into();
             let byte_blob = {
                 let buffer_view = &gltf.bufferViews[image_info.bufferView as usize];
@@ -270,16 +270,16 @@ impl Scene {
         }).collect::<Vec<_>>();
         let texture_image_info = device_task.allocate_all(&vulkan);
 
-        let images = images.into_iter().map(|(image, rgba, format, extent)| {
+        let texture_images = texture_images.into_iter().map(|(image, data, format, extent)| {
             let image_view = vulkan.create_image_view(&image, VkImageViewType::IVT_2D, format, VkImageAspectFlags::COLOR_BIT);
 
             let image = VkDestroy::new(image, &vulkan);
             let image_view = VkDestroy::new(image_view, &vulkan);
-            let size = rgba.len();
+            let size = data.len();
             Image {
                 image,
                 image_view,
-                data: rgba,
+                data,
                 size,
                 extent,
             }
@@ -323,7 +323,7 @@ impl Scene {
         let image_infos = gltf.textures.iter().map(|texture| {
             VkDescriptorImageInfo {
                 sampler: samplers[texture.sampler as usize],
-                imageView: *images[texture.source as usize].image_view.get(),
+                imageView: *texture_images[texture.source as usize].image_view,
                 imageLayout: VkImageLayout::SHADER_READ_ONLY_OPTIMAL,
             }
         }).collect::<Vec<_>>();
@@ -382,13 +382,13 @@ impl Scene {
             &vulkan
         );
 
-        let parameter_count = indirect_parameters.len() as u32;
-        let samplers = samplers.into_iter().map(|sampler| {
+        let parameter_count = parameters.len() as u32;
+        let _samplers = samplers.into_iter().map(|sampler| {
             VkDestroy::new(sampler, &vulkan)
         }).collect::<Vec<_>>();
 
-        let combined_info = main_buffers_info.merge(texture_image_info).merge(ubo_host_info).merge(ubo_device_info);
-        let memory = combined_info.get_all_memory_objects().into_iter().map(|memory| {
+        let combined_info = AllocationInfo::merge_all(vec![texture_image_info, ubo_host_info, ubo_device_info, main_buffers_info]);
+        let _memory = combined_info.get_all_memory_objects().into_iter().map(|memory| {
             VkDestroy::new(memory, &vulkan)
         }).collect::<Vec<_>>();
         let mut scene = Scene {
@@ -397,15 +397,15 @@ impl Scene {
             idx: VkDestroy::new(idx_buffer, &vulkan),
             indirect_buffer: VkDestroy::new(indirect_buffer, &vulkan),
             idx_size,
-            indirect_buffer_size: parameters_size,
-            parameters: indirect_parameters,
+            parameters_size,
+            parameters,
             parameter_count,
             descriptor_sets,
             descriptor_layouts,
             indices,
-            texture_images: images,
-            _samplers: samplers,
-            _memory: memory,
+            texture_images,
+            _samplers,
+            _memory,
         };
         scene.prepare(&vulkan);
 
@@ -413,7 +413,7 @@ impl Scene {
     }
 
     pub fn prepare(&mut self, vulkan: &Vulkan) {
-        let mut max_staging_size = self.idx_size + self.indirect_buffer_size;
+        let mut max_staging_size = self.idx_size + self.parameters_size;
         for image in &self.texture_images {
             max_staging_size += image.size as u64;
         }
@@ -436,7 +436,7 @@ impl Scene {
 
             // Copy parameters
             Vulkan::copy_info(staging_ptr.add(current_offset as usize), self.parameters.as_ptr(), self.parameters.len());
-            current_offset += self.indirect_buffer_size;
+            current_offset += self.parameters_size;
 
             // Copy images
             for image in &self.texture_images {
@@ -467,7 +467,7 @@ impl Scene {
         vulkan.buffer_to_buffer(vec![VkBufferCopy {
             srcOffset: self.idx_size,
             dstOffset: 0,
-            size: self.indirect_buffer_size,
+            size: self.parameters_size,
         }], one_time_command_buffer, staging_buffer, *self.indirect_buffer.get());
 
         let transitions = self.texture_images.iter().map(|image| {

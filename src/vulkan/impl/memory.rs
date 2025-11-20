@@ -303,9 +303,15 @@ impl AllocationInfo {
         self.image_info.extend(allocation_info.image_info);
     }
 
-    pub fn merge(self, allocation_info: AllocationInfo)  -> Self {
+    pub fn merge(allocation_info: AllocationInfo)  -> Self {
         let mut info = AllocationInfo::default();
         info.merge_mut(allocation_info);
+        info
+    }
+
+    pub fn merge_all(allocation_infos: Vec<AllocationInfo>)  -> Self {
+        let mut info = AllocationInfo::default();
+        allocation_infos.into_iter().for_each(|all_info| info.merge_mut(all_info));
         info
     }
 
