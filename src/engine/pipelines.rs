@@ -13,31 +13,9 @@ const FILE_PATH: &str = "cache.storage";
 const VERSION: u32 = 0;
 
 pub fn create_pipelines_multithreaded(use_caches: bool, pipeline_infos: Vec<GraphicsPipelineCreateInfo>, vulkan: &Vulkan) -> Vec<VkPipeline> {
-    let mut cache_data: Cache;
-
-    if use_caches {
-        match File::open(FILE_PATH) {
-            Ok(_) => {
-                let raw_bytes = fs::read(FILE_PATH).expect("Unable to read file");
-                let decoded_bytes = decompression_algo(&raw_bytes);
-                cache_data = Cache::decode(decoded_bytes.as_slice()).expect("Unable to decode cache");
-
-                if cache_data.device == None || cache_data.cache_blob.len() == 0 || cache_data.version != VERSION {
-                    #[cfg(debug_assertions)] println!("Cache devalidated");
-                    cache_data = create_new_cache(vulkan);
-                }
-
-                if cache_data.device.unwrap() != build_device_info(vulkan.get_loaded_device()) {
-                    #[cfg(debug_assertions)] println!("Cache devalidated");
-                    cache_data = create_new_cache(vulkan);
-                };
-            },
-            Err(_) => {
-                cache_data = create_new_cache(vulkan);
-            },
-        }
-    } else {
-        cache_data = Cache::default();
+    let mut cache_data: Cache = match use_caches {
+        true => validate_caches(vulkan),
+        false => Cache::default()
     };
 
     let thread_count = available_parallelism()
@@ -82,6 +60,34 @@ pub fn create_pipelines_multithreaded(use_caches: bool, pipeline_infos: Vec<Grap
     final_cache.destroy(vulkan);
 
     pipelines
+}
+
+fn validate_caches(vulkan: &Vulkan) -> Cache {
+    match File::open(FILE_PATH) {
+        Ok(_) => {
+            let raw_bytes = fs::read(FILE_PATH).expect("Unable to read file");
+            let decoded_bytes = decompression_algo(&raw_bytes);
+            let cache_data = Cache::decode(decoded_bytes.as_slice()).expect("Unable to decode cache");
+
+            if cache_data.device == None || cache_data.cache_blob.len() == 0 || cache_data.version != VERSION {
+                return devalidate(vulkan);
+            }
+
+            if cache_data.device.unwrap() != build_device_info(vulkan.get_loaded_device()) {
+                return devalidate(vulkan);
+            }
+
+            cache_data
+        },
+        Err(_) => {
+            create_new_cache(vulkan)
+        },
+    }
+}
+
+fn devalidate(vulkan: &Vulkan) -> Cache {
+    #[cfg(debug_assertions)] println!("Cache devalidated");
+    create_new_cache(vulkan)
 }
 pub fn compression_algo(bytes: &[u8]) -> Vec<u8> {
     lz4_flex::compress_prepend_size(bytes)
