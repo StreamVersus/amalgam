@@ -2,7 +2,7 @@ use crate::safe_ptr;
 use crate::vulkan::func::{Destructible, Vulkan};
 use std::any::Any;
 use std::ptr::null_mut;
-use vulkan_raw::{vkAllocateDescriptorSets, vkCmdBindDescriptorSets, vkCreateDescriptorPool, vkCreateDescriptorSetLayout, vkDestroyDescriptorPool, vkDestroyDescriptorSetLayout, vkFreeDescriptorSets, vkResetDescriptorPool, vkUpdateDescriptorSets, VkBufferView, VkCommandBuffer, VkCopyDescriptorSet, VkDescriptorBufferInfo, VkDescriptorImageInfo, VkDescriptorPool, VkDescriptorPoolCreateFlags, VkDescriptorPoolCreateInfo, VkDescriptorPoolResetFlagBits, VkDescriptorPoolSize, VkDescriptorSet, VkDescriptorSetAllocateInfo, VkDescriptorSetLayout, VkDescriptorSetLayoutBinding, VkDescriptorSetLayoutCreateInfo, VkDescriptorType, VkPipelineBindPoint, VkPipelineLayout, VkResult, VkWriteDescriptorSet};
+use vulkan_raw::{vkAllocateDescriptorSets, vkCmdBindDescriptorSets, vkCreateDescriptorPool, vkCreateDescriptorSetLayout, vkDestroyDescriptorPool, vkDestroyDescriptorSetLayout, vkFreeDescriptorSets, vkResetDescriptorPool, vkUpdateDescriptorSets, VkBufferView, VkCommandBuffer, VkCopyDescriptorSet, VkDescriptorBufferInfo, VkDescriptorImageInfo, VkDescriptorPool, VkDescriptorPoolCreateFlags, VkDescriptorPoolCreateInfo, VkDescriptorPoolResetFlagBits, VkDescriptorPoolSize, VkDescriptorSet, VkDescriptorSetAllocateInfo, VkDescriptorSetLayout, VkDescriptorSetLayoutBinding, VkDescriptorSetLayoutCreateInfo, VkDescriptorType, VkPipelineBindPoint, VkPipelineLayout, VkWriteDescriptorSet};
 
 impl Vulkan {
     pub fn create_descriptor_set_layout(&self, bindings: &[VkDescriptorSetLayoutBinding]) -> VkDescriptorSetLayout {
@@ -14,7 +14,7 @@ impl Vulkan {
         
         let mut descriptor_set_layout = VkDescriptorSetLayout::none();
         let result = unsafe { vkCreateDescriptorSetLayout(self.get_loaded_device().logical_device, &descriptor_set_layout_create_info, null_mut(), &mut descriptor_set_layout) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         
         descriptor_set_layout
     }
@@ -36,7 +36,7 @@ impl Vulkan {
         
         let mut descriptor_pool = VkDescriptorPool::none();
         let result = unsafe { vkCreateDescriptorPool(self.get_loaded_device().logical_device, &descriptor_pool_create_info, null_mut(), &mut descriptor_pool) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         
         descriptor_pool
     }
@@ -54,7 +54,7 @@ impl Vulkan {
         let result = unsafe {
             vkAllocateDescriptorSets(self.get_loaded_device().logical_device, &descriptor_set_allocate_info, spare.as_mut_ptr() as *mut VkDescriptorSet)
         };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         unsafe {
             descriptor_sets.set_len(descriptor_set_layouts.len());
@@ -90,12 +90,12 @@ impl Vulkan {
 
     pub fn free_descriptor_sets(&mut self, descriptor_pool: VkDescriptorPool, descriptor_sets: Vec<VkDescriptorSet>) {
         let result = unsafe { vkFreeDescriptorSets(self.get_loaded_device().logical_device, descriptor_pool, descriptor_sets.len() as u32, safe_ptr!(descriptor_sets)) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
     }
 
     pub fn reset_descriptor_pool(&self, descriptor_pool: VkDescriptorPool) {
         let result = unsafe { vkResetDescriptorPool(self.get_loaded_device().logical_device, descriptor_pool, VkDescriptorPoolResetFlagBits::empty()) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
     }
 
     fn destroy_descriptor_pool(&self, descriptor_pool: VkDescriptorPool) {

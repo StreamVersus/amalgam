@@ -3,7 +3,7 @@ use crate::vulkan::func::{Destructible, Vulkan};
 use std::any::Any;
 use std::ptr::null;
 use std::ptr::null_mut;
-use vulkan_raw::{vkCmdBeginRenderPass, vkCmdClearAttachments, vkCmdEndRenderPass, vkCmdNextSubpass, vkCreateFramebuffer, vkCreateRenderPass, vkDestroyFramebuffer, vkDestroyRenderPass, VkAccessFlags, VkAttachmentDescription, VkAttachmentLoadOp, VkAttachmentReference, VkAttachmentStoreOp, VkClearAttachment, VkClearRect, VkClearValue, VkCommandBuffer, VkFormat, VkFramebuffer, VkFramebufferCreateInfo, VkImageLayout, VkImageView, VkPipelineBindPoint, VkPipelineStageFlags, VkRect2D, VkRenderPass, VkRenderPassBeginInfo, VkRenderPassCreateInfo, VkResult, VkSampleCountFlags, VkSubpassContents, VkSubpassDependency, VkSubpassDescription, VK_SUBPASS_EXTERNAL};
+use vulkan_raw::{vkCmdBeginRenderPass, vkCmdClearAttachments, vkCmdEndRenderPass, vkCmdNextSubpass, vkCreateFramebuffer, vkCreateRenderPass, vkDestroyFramebuffer, vkDestroyRenderPass, VkAccessFlags, VkAttachmentDescription, VkAttachmentLoadOp, VkAttachmentReference, VkAttachmentStoreOp, VkClearAttachment, VkClearRect, VkClearValue, VkCommandBuffer, VkFormat, VkFramebuffer, VkFramebufferCreateInfo, VkImageLayout, VkImageView, VkPipelineBindPoint, VkPipelineStageFlags, VkRect2D, VkRenderPass, VkRenderPassBeginInfo, VkRenderPassCreateInfo, VkSampleCountFlags, VkSubpassContents, VkSubpassDependency, VkSubpassDescription, VK_SUBPASS_EXTERNAL};
 
 impl Vulkan {
     pub fn create_render_pass(&self, attachment_description: Vec<VkAttachmentDescription>, subpass_parameters: Vec<SubpassParameters>, subpass_dependencies: Vec<VkSubpassDependency>) -> VkRenderPass {
@@ -28,7 +28,7 @@ impl Vulkan {
 
         let mut render_pass = VkRenderPass::none();
         let result = unsafe { vkCreateRenderPass(self.get_loaded_device().logical_device, &create_info, null_mut(), &mut render_pass) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         render_pass
     }
@@ -46,7 +46,7 @@ impl Vulkan {
 
         let mut framebuffer = VkFramebuffer::none();
         let result = unsafe { vkCreateFramebuffer(self.get_loaded_device().logical_device, &create_info, null_mut(), &mut framebuffer) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         framebuffer
     }

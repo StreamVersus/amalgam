@@ -1,6 +1,6 @@
 use crate::vulkan::func::Vulkan;
 use std::ptr::null_mut;
-use vulkan_raw::{vkCreateAndroidSurfaceKHR, vkCreateWaylandSurfaceKHR, vkCreateWin32SurfaceKHR, vkCreateXcbSurfaceKHR, vkCreateXlibSurfaceKHR, vkDestroySurfaceKHR, vkGetPhysicalDeviceSurfaceCapabilitiesKHR, vkGetPhysicalDeviceSurfacePresentModesKHR, VkAndroidSurfaceCreateInfoKHR, VkColorSpaceKHR, VkFormat, VkPhysicalDevice, VkPresentModeKHR, VkResult, VkSurfaceCapabilitiesKHR, VkSurfaceFormatKHR, VkSurfaceKHR, VkWaylandSurfaceCreateInfoKHR, VkWin32SurfaceCreateInfoKHR, VkXcbSurfaceCreateInfoKHR, VkXlibSurfaceCreateInfoKHR, HINSTANCE, HWND};
+use vulkan_raw::{vkCreateAndroidSurfaceKHR, vkCreateWaylandSurfaceKHR, vkCreateWin32SurfaceKHR, vkCreateXcbSurfaceKHR, vkCreateXlibSurfaceKHR, vkDestroySurfaceKHR, vkGetPhysicalDeviceSurfaceCapabilitiesKHR, vkGetPhysicalDeviceSurfacePresentModesKHR, VkAndroidSurfaceCreateInfoKHR, VkColorSpaceKHR, VkFormat, VkPhysicalDevice, VkPresentModeKHR, VkSurfaceCapabilitiesKHR, VkSurfaceFormatKHR, VkSurfaceKHR, VkWaylandSurfaceCreateInfoKHR, VkWin32SurfaceCreateInfoKHR, VkXcbSurfaceCreateInfoKHR, VkXlibSurfaceCreateInfoKHR, HINSTANCE, HWND};
 use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle};
 use winit::window::Window;
 
@@ -10,7 +10,7 @@ impl Vulkan {
         let mut result = unsafe {
             vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &mut present_mode_count, null_mut())
         };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         assert_ne!(present_mode_count, 0);
         
         let mut present_modes: Vec<VkPresentModeKHR> = Vec::with_capacity(present_mode_count as usize);
@@ -18,7 +18,7 @@ impl Vulkan {
         result = unsafe {
             vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &mut present_mode_count, spare.as_mut_ptr() as *mut VkPresentModeKHR)
         };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         assert_ne!(present_mode_count, 0);
 
         unsafe {
@@ -43,7 +43,7 @@ impl Vulkan {
         let mut surface_capabilities = VkSurfaceCapabilitiesKHR::default();
 
         let result = unsafe { vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &mut surface_capabilities) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         surface_capabilities
     }
@@ -65,7 +65,7 @@ impl Vulkan {
 
                     let mut surface = VkSurfaceKHR::none();
                     let result = vkCreateXcbSurfaceKHR(instance, &surface_create_info, null_mut(), &mut surface);
-                    assert_eq!(result, VkResult::SUCCESS);
+                    assert!(result.is_ok());
 
                     surface
                 }
@@ -78,7 +78,7 @@ impl Vulkan {
 
                     let mut surface = VkSurfaceKHR::none();
                     let result = vkCreateXlibSurfaceKHR(instance, &surface_create_info, null_mut(), &mut surface);
-                    assert_eq!(result, VkResult::SUCCESS);
+                    assert!(result.is_ok());
 
                     surface
                 }
@@ -91,7 +91,7 @@ impl Vulkan {
 
                     let mut surface = VkSurfaceKHR::none();
                     let result = vkCreateWaylandSurfaceKHR(instance, &surface_create_info, null_mut(), &mut surface);
-                    assert_eq!(result, VkResult::SUCCESS);
+                    assert!(result.is_ok());
 
                     surface
                 }
@@ -104,7 +104,7 @@ impl Vulkan {
 
                     let mut surface = VkSurfaceKHR::none();
                     let result = vkCreateWin32SurfaceKHR(instance, &surface_create_info, null_mut(), &mut surface);
-                    assert_eq!(result, VkResult::SUCCESS);
+                    assert!(result.is_ok());
 
                     surface
                 }
@@ -116,7 +116,7 @@ impl Vulkan {
 
                     let mut surface = VkSurfaceKHR::none();
                     let result = vkCreateAndroidSurfaceKHR(instance, &surface_create_info, null_mut(), &mut surface);
-                    assert_eq!(result, VkResult::SUCCESS);
+                    assert!(result.is_ok());
 
                     surface
                 }

@@ -6,7 +6,7 @@ impl Vulkan {
     pub fn create_semaphore(&self) -> VkSemaphore {
         let mut semaphore = VkSemaphore::none();
         let result = unsafe { vkCreateSemaphore(self.get_loaded_device().logical_device, &VkSemaphoreCreateInfo::default(), null(), &mut semaphore) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         
         semaphore
     }
@@ -31,7 +31,7 @@ impl Vulkan {
         
         let mut fence = VkFence::none();
         let result = unsafe { vkCreateFence(self.get_loaded_device().logical_device, &fence_create_info, null(), &mut fence) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         
         fence
     }

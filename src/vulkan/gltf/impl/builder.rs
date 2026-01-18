@@ -2,27 +2,28 @@ use crate::engine::vbo::VBO;
 use crate::vulkan::func::Vulkan;
 use crate::vulkan::gltf::gltf_struct;
 use crate::vulkan::gltf::gltf_struct::{Attributes, Gltf};
-use crate::vulkan::gltf::scene::{check_length, check_magic, SIZE_TEXCOORDS};
+use crate::vulkan::gltf::scene::{check_length, check_magic, raw_to_chunks, SIZE_TEXCOORDS};
 use crate::vulkan::gltf::scene::{Image, Mesh, Node, Primitive, Scene};
 use crate::vulkan::gltf::ubo::{UniformBuffer, MATRICES_SIZE};
-use crate::vulkan::gltf::utils::{read_samplers, resolve_amount, resolve_offset, resolve_size, resolve_vertex, resolve_vertices, ImageFormat, IndirectParameters};
+use crate::vulkan::gltf::utils::{read_samplers, resolve_amount, resolve_offset, resolve_size, resolve_vertex, resolve_vertices, ImageFormat, IndirectParameters, StagingBuffer};
 use crate::vulkan::r#impl::descriptors::{BufferDescriptorInfo, DescriptorSetInfo, ImageDescriptorInfo};
 use crate::vulkan::r#impl::memory::{AllocationInfo, AllocationTask, VkDestroy};
 use crate::vulkan::utils::{build_pool_size, BufferUsage, ImageUsage};
 use image::ImageReader;
+use shaders::{SAMPLER_LIMIT, TEXTURE_LIMIT};
 use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::ptr::null_mut;
-use ultraviolet::{Mat4, Rotor3, Vec3};
-use vulkan_raw::{VkDescriptorBufferInfo, VkDescriptorImageInfo, VkDescriptorSetLayoutBinding, VkDescriptorType, VkExtent3D, VkImageAspectFlags, VkImageLayout, VkImageType, VkImageViewType, VkSampleCountFlagBits, VkSampler, VkShaderStageFlags, VK_WHOLE_SIZE};
+use ultraviolet::{Mat3, Mat4, Rotor3, Vec3, Vec4};
+use vulkan_raw::{VkDescriptorBufferInfo, VkDescriptorImageInfo, VkDescriptorSetLayoutBinding, VkDescriptorType, VkExtent3D, VkImageAspectFlags, VkImageLayout, VkImageType, VkImageView, VkImageViewType, VkSampleCountFlagBits, VkSampler, VkShaderStageFlags, VK_WHOLE_SIZE};
 
 impl Scene {
-    pub fn from_glb(bytes: &[u8], vulkan: Vulkan) -> Scene {
+    pub fn from_glb(bytes: &[u8], vulkan: Vulkan, staging: &mut StagingBuffer) -> Scene {
         check_magic(bytes);
         check_length(bytes);
 
-        let bytes = &bytes[12..]; // data
-        let (json_chunk, bin_chunk) = crate::vulkan::gltf::scene::raw_to_chunks(bytes);
+        let bytes = &bytes[12..]; // data without headers
+        let (json_chunk, bin_chunk) = raw_to_chunks(bytes);
         let gltf: Gltf = unsafe { sonic_rs::from_slice_unchecked(json_chunk.data.as_slice()).expect("broken json") };
 
         let parameters_size = (gltf.meshes.len() * size_of::<IndirectParameters>()) as u64;
@@ -100,10 +101,16 @@ impl Scene {
             });
         });
 
-        let mut mesh_renders: HashMap<u32, u32> = HashMap::with_capacity(gltf.meshes.len());
+        let mut mesh_renders: HashMap<u32, Vec<&Node>> = HashMap::with_capacity(gltf.meshes.len());
         nodes.iter().for_each(|node| {
-            let amount = *mesh_renders.get(&node.mesh.id).unwrap_or(&0);
-            mesh_renders.insert(node.mesh.id, amount + 1);
+            let vec = if let Some(vec) = mesh_renders.get_mut(&node.mesh.id) {
+                vec
+            } else {
+                let new_vec = vec![];
+                mesh_renders.insert(node.mesh.id, new_vec);
+                mesh_renders.get_mut(&node.mesh.id).unwrap()
+            };
+            vec.push(node);
         });
         let mut parameters: Vec<IndirectParameters> = Vec::with_capacity(gltf.meshes.len());
 
@@ -113,13 +120,13 @@ impl Scene {
         let mut instance_resolve: HashMap<u32, &gltf_struct::Primitive> = HashMap::with_capacity(gltf.meshes.len());
         for i in 0..gltf.meshes.len() as u32 {
             let mesh = meshes.get(&i).unwrap();
-            let instances = mesh_renders.remove(&i).unwrap();
+            let nodes = mesh_renders.remove(&i).unwrap();
 
             let json_mesh = &gltf.meshes[i as usize];
             mesh.primitives.iter().enumerate().for_each(|(i, primitive)| {
                 parameters.push(IndirectParameters {
                     index_count: primitive.indices,
-                    instance_count: instances,
+                    instance_count: nodes.len() as u32,
                     first_index: index_offset,
                     vertex_offset,
                     first_instance: instance_offset,
@@ -127,7 +134,7 @@ impl Scene {
 
                 index_offset += primitive.indices;
                 vertex_offset += primitive.vertices;
-                for _ in 0..instances {
+                for _ in 0..nodes.len() as u32 {
                     instance_resolve.insert(instance_offset, &json_mesh.primitives[i]);
                     instance_offset += 1;
                 }
@@ -175,21 +182,45 @@ impl Scene {
             }
         }).collect::<Vec<_>>();
 
+        assert!(gltf.textures.len() <= TEXTURE_LIMIT);
+        assert!(samplers.len() <= SAMPLER_LIMIT);
+
         let indirect_description_bindings = [
             VkDescriptorSetLayoutBinding {
                 binding: 0,
-                descriptorType: VkDescriptorType::COMBINED_IMAGE_SAMPLER,
+                descriptorType: VkDescriptorType::SAMPLED_IMAGE,
                 descriptorCount: gltf.textures.len() as u32,
                 stageFlags: VkShaderStageFlags::FRAGMENT_BIT,
                 pImmutableSamplers: null_mut(),
             },
             VkDescriptorSetLayoutBinding {
                 binding: 1,
-                descriptorType: VkDescriptorType::UNIFORM_BUFFER,
+                descriptorType: VkDescriptorType::SAMPLER,
+                descriptorCount: samplers.len() as u32,
+                stageFlags: VkShaderStageFlags::FRAGMENT_BIT,
+                pImmutableSamplers: null_mut(),
+            },
+            VkDescriptorSetLayoutBinding {
+                binding: 3,
+                descriptorType: VkDescriptorType::STORAGE_BUFFER,
                 descriptorCount: 1,
                 stageFlags: VkShaderStageFlags::VERTEX_BIT,
                 pImmutableSamplers: null_mut(),
-            }
+            },
+            VkDescriptorSetLayoutBinding {
+                binding: 4,
+                descriptorType: VkDescriptorType::STORAGE_BUFFER,
+                descriptorCount: 1,
+                stageFlags: VkShaderStageFlags::VERTEX_BIT,
+                pImmutableSamplers: null_mut(),
+            },
+            VkDescriptorSetLayoutBinding {
+                binding: 5,
+                descriptorType: VkDescriptorType::STORAGE_BUFFER,
+                descriptorCount: 1,
+                stageFlags: VkShaderStageFlags::VERTEX_BIT,
+                pImmutableSamplers: null_mut(),
+            },
         ];
         let indirect_descriptor_layout = vulkan.create_descriptor_set_layout(&indirect_description_bindings);
 
@@ -212,11 +243,19 @@ impl Scene {
 
         let image_infos = gltf.textures.iter().map(|texture| {
             VkDescriptorImageInfo {
-                sampler: samplers[texture.sampler as usize],
+                sampler: VkSampler::none(),
                 imageView: *texture_images[texture.source as usize].image_view,
                 imageLayout: VkImageLayout::SHADER_READ_ONLY_OPTIMAL,
             }
         }).collect::<Vec<_>>();
+
+        let sampler_infos: Vec<_> = samplers.iter().map(|&sampler| {
+            VkDescriptorImageInfo {
+                sampler,
+                imageView: VkImageView::none(),
+                imageLayout: VkImageLayout::UNDEFINED,
+            }
+        }).collect();
 
         let ubo_host_buffer = vulkan.create_buffer(MATRICES_SIZE as u64, BufferUsage::preset_staging()).unwrap();
         let ubo_host_info = AllocationTask::host_cached().add_allocatable(ubo_host_buffer).allocate_all(&vulkan);
@@ -224,6 +263,7 @@ impl Scene {
         let ubo_device_buffer = vulkan.create_buffer(MATRICES_SIZE as u64, BufferUsage::default().uniform_buffer(true).transfer_dst(true)).unwrap();
         let ubo_device_info = AllocationTask::device().add_allocatable(ubo_device_buffer).allocate_all(&vulkan);
 
+        //let model_ssbo =
         vulkan.update_descriptor_sets(vec![
             ImageDescriptorInfo {
                 target_descriptor: DescriptorSetInfo {
@@ -231,9 +271,19 @@ impl Scene {
                     descriptor_binding: 0,
                     array_element: 0,
                 },
-                target_descriptor_type: VkDescriptorType::COMBINED_IMAGE_SAMPLER,
+                target_descriptor_type: VkDescriptorType::SAMPLED_IMAGE,
                 image_infos,
-            }], vec![
+            },
+            ImageDescriptorInfo {
+                target_descriptor: DescriptorSetInfo {
+                    descriptor_set: descriptor_sets[1],
+                    descriptor_binding: 1,
+                    array_element: 0,
+                },
+                target_descriptor_type: VkDescriptorType::SAMPLER,
+                image_infos: sampler_infos,
+            },
+            ], vec![
             BufferDescriptorInfo {
                 target_descriptor: DescriptorSetInfo {
                     descriptor_set: descriptor_sets[0],
@@ -247,13 +297,42 @@ impl Scene {
                     range: VK_WHOLE_SIZE,
                 }],
             },
+            // // model matrices
             // BufferDescriptorInfo {
             //     target_descriptor: DescriptorSetInfo {
             //         descriptor_set: descriptor_sets[1],
-            //         descriptor_binding: 1,
+            //         descriptor_binding: 3,
             //         array_element: 0,
             //     },
-            //     target_descriptor_type: VkDescriptorType::UNIFORM_BUFFER,
+            //     target_descriptor_type: VkDescriptorType::STORAGE_BUFFER,
+            //     buffer_infos: vec![VkDescriptorBufferInfo {
+            //         buffer: ubo_device_buffer,
+            //         offset: 0,
+            //         range: VK_WHOLE_SIZE,
+            //     }],
+            // },
+            // // model ranges
+            // BufferDescriptorInfo {
+            //     target_descriptor: DescriptorSetInfo {
+            //         descriptor_set: descriptor_sets[1],
+            //         descriptor_binding: 4,
+            //         array_element: 0,
+            //     },
+            //     target_descriptor_type: VkDescriptorType::STORAGE_BUFFER,
+            //     buffer_infos: vec![VkDescriptorBufferInfo {
+            //         buffer: ubo_device_buffer,
+            //         offset: 0,
+            //         range: VK_WHOLE_SIZE,
+            //     }],
+            // },
+            // // texture ranges
+            // BufferDescriptorInfo {
+            //     target_descriptor: DescriptorSetInfo {
+            //         descriptor_set: descriptor_sets[1],
+            //         descriptor_binding: 5,
+            //         array_element: 0,
+            //     },
+            //     target_descriptor_type: VkDescriptorType::STORAGE_BUFFER,
             //     buffer_infos: vec![VkDescriptorBufferInfo {
             //         buffer: ubo_device_buffer,
             //         offset: 0,
@@ -297,8 +376,34 @@ impl Scene {
             _samplers,
             _memory,
         };
-        scene.prepare(&vulkan);
+        scene.prepare(&vulkan, staging);
 
         scene
     }
+}
+
+fn build_model_matrix(
+    translation: Option<[f32; 3]>,
+    rotation: Option<[f32; 4]>,
+    scale: Option<[f32; 3]>,
+) -> Mat4 {
+    let t = translation.map(Vec3::from).unwrap_or(Vec3::zero());
+    let r = rotation.map(|q| Rotor3::from_quaternion_array(q)).unwrap_or(Rotor3::identity());
+    let s = scale.map(Vec3::from).unwrap_or(Vec3::one());
+
+    let rot_mat3: Mat3 = r.into_matrix();
+    let rot_mat4 = mat3_to_mat4(rot_mat3);
+
+    Mat4::from_translation(t)
+        * rot_mat4
+        * Mat4::from_nonuniform_scale(s)
+}
+
+fn mat3_to_mat4(m: Mat3) -> Mat4 {
+    Mat4::new(
+        Vec4::from(m.cols[0]),
+        Vec4::from(m.cols[1]),
+        Vec4::from(m.cols[2]),
+        Vec4::new(0.0, 0.0, 0.0, 1.0), // Translation/homogeneous row
+    )
 }

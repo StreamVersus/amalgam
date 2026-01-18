@@ -1,8 +1,11 @@
 use crate::engine::vbo::VBO;
-use crate::vulkan::func::Vulkan;
+use crate::vulkan::func::{Destructible, Vulkan};
 use crate::vulkan::gltf::gltf_struct::{Attributes, Gltf};
+use crate::vulkan::r#impl::memory::AllocationTask;
+use crate::vulkan::r#impl::memory::MemoryInfo;
 use crate::vulkan::r#impl::sampler::SamplerInfo;
-use vulkan_raw::{VkBorderColor, VkCompareOp, VkFilter, VkFormat, VkSampler, VkSamplerAddressMode, VkSamplerMipmapMode};
+use crate::vulkan::utils::BufferUsage;
+use vulkan_raw::{VkBorderColor, VkBuffer, VkCompareOp, VkFilter, VkFormat, VkSampler, VkSamplerAddressMode, VkSamplerMipmapMode};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ImageFormat {
@@ -19,12 +22,7 @@ impl Into<VkFormat> for ImageFormat {
     fn into(self) -> VkFormat {
         match self {
             ImageFormat::Jpeg => VkFormat::R8G8B8_UNORM,
-            ImageFormat::Png => VkFormat::R8G8B8A8_UNORM,
-            ImageFormat::Bmp => VkFormat::R8G8B8A8_UNORM,
-            ImageFormat::Gif => VkFormat::R8G8B8A8_UNORM,
-            ImageFormat::Tiff => VkFormat::R8G8B8A8_UNORM,
-            ImageFormat::WebP => VkFormat::R8G8B8A8_UNORM,
-            ImageFormat::Unknown => VkFormat::R8G8B8A8_UNORM,
+            _ => VkFormat::R8G8B8A8_UNORM,
         }
     }
 }
@@ -45,8 +43,8 @@ impl From<String> for ImageFormat {
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ChunkType {
-    JSON = 0x4E4F534A,
-    BIN = 0x004E4942,
+    JSON = 0x4E4F534A, // JSON in ASCII
+    BIN = 0x004E4942, // BIN in ASCII
 }
 
 impl TryFrom<u32> for ChunkType {
@@ -191,4 +189,41 @@ pub fn read_samplers(vulkan: &Vulkan, gltf: &Gltf) -> Vec<VkSampler> {
 
         vulkan.create_sampler(sampler_info)
     }).collect()
+}
+pub struct StagingBuffer {
+    size: u64,
+    buffer: VkBuffer,
+    info: MemoryInfo,
+}
+
+impl Destructible for StagingBuffer {
+    fn destroy(&self, vulkan: &Vulkan) {
+        self.buffer.destroy(vulkan);
+        self.info.memory_object.destroy(vulkan);
+    }
+}
+
+impl StagingBuffer {
+    pub fn new() -> Self {
+        Self {
+            size: 0,
+            buffer: VkBuffer::none(),
+            info: Default::default(),
+        }
+    }
+    
+    pub fn info(&self) -> &MemoryInfo {
+        &self.info
+    }
+    
+    pub fn pull(&mut self, size: u64, vulkan: &Vulkan) -> VkBuffer {
+        if self.size < size {
+            let buffer = vulkan.create_buffer(size, BufferUsage::preset_staging()).unwrap();
+            self.buffer.destroy(vulkan);
+            self.buffer = buffer;
+            self.info = AllocationTask::host_coherent().add_allocatable(buffer).allocate_all(vulkan).get_all_info()[0];
+        }
+
+        self.buffer
+    }
 }

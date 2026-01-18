@@ -1,7 +1,7 @@
 use crate::safe_ptr;
 use crate::vulkan::func::{bool_to_vkbool, Destructible, Vulkan};
 use std::ptr::null_mut;
-use vulkan_raw::{vkAllocateCommandBuffers, vkBeginCommandBuffer, vkCreateCommandPool, vkDestroyCommandPool, vkEndCommandBuffer, vkFreeCommandBuffers, vkQueueSubmit, vkResetCommandBuffer, vkResetCommandPool, VkCommandBuffer, VkCommandBufferAllocateInfo, VkCommandBufferBeginInfo, VkCommandBufferInheritanceInfo, VkCommandBufferLevel, VkCommandBufferResetFlagBits, VkCommandBufferResetFlags, VkCommandBufferUsageFlags, VkCommandPool, VkCommandPoolCreateFlags, VkCommandPoolCreateInfo, VkCommandPoolResetFlags, VkFence, VkFramebuffer, VkPipelineStageFlags, VkQueryControlFlags, VkQueryPipelineStatisticFlags, VkQueue, VkRenderPass, VkResult, VkSemaphore, VkSubmitInfo};
+use vulkan_raw::{vkAllocateCommandBuffers, vkBeginCommandBuffer, vkCreateCommandPool, vkDestroyCommandPool, vkEndCommandBuffer, vkFreeCommandBuffers, vkQueueSubmit, vkResetCommandBuffer, vkResetCommandPool, VkCommandBuffer, VkCommandBufferAllocateInfo, VkCommandBufferBeginInfo, VkCommandBufferInheritanceInfo, VkCommandBufferLevel, VkCommandBufferResetFlagBits, VkCommandBufferResetFlags, VkCommandBufferUsageFlags, VkCommandPool, VkCommandPoolCreateFlags, VkCommandPoolCreateInfo, VkCommandPoolResetFlags, VkFence, VkFramebuffer, VkPipelineStageFlags, VkQueryControlFlags, VkQueryPipelineStatisticFlags, VkQueue, VkRenderPass, VkSemaphore, VkSubmitInfo};
 
 impl Vulkan {
     pub fn create_command_pool(&self, family_index: u32, flags: VkCommandPoolCreateFlags) -> VkCommandPool {
@@ -12,7 +12,7 @@ impl Vulkan {
         };
         let mut command_pool = VkCommandPool::none();
         let result = unsafe { vkCreateCommandPool(self.get_loaded_device().logical_device, &command_pool_create_info, null_mut(), &mut command_pool) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         assert_ne!(command_pool, VkCommandPool::none());
 
         command_pool
@@ -31,7 +31,7 @@ impl Vulkan {
         let result = unsafe {
             vkAllocateCommandBuffers(self.get_loaded_device().logical_device, &command_buffer_alloc_info, spare.as_mut_ptr() as *mut VkCommandBuffer)
         };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         
         unsafe {
             buffers.set_len(amount as usize);
@@ -49,12 +49,12 @@ impl Vulkan {
         };
 
         let result = unsafe { vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
     }
 
     pub fn end_recording(&self, command_buffer: VkCommandBuffer) {
         let result = unsafe { vkEndCommandBuffer(command_buffer) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
     }
 
     pub fn reset_buffer(&self, command_buffer: VkCommandBuffer, release_resources: bool) {
@@ -65,7 +65,7 @@ impl Vulkan {
                 VkCommandBufferResetFlags::empty()
             }
         }) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
     }
 
     pub fn reset_pool(&self, command_pool: VkCommandPool, release_resources: bool) {
@@ -76,7 +76,7 @@ impl Vulkan {
                 VkCommandPoolResetFlags::empty()
             }
         }) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
     }
     
     pub fn destroy_pool(&self, command_pool: VkCommandPool) {
@@ -112,7 +112,7 @@ impl Vulkan {
         };
         
         let result = unsafe { vkQueueSubmit(queue, 1, &submit_info, fence) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
     }
 }
 

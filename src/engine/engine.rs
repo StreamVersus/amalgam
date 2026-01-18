@@ -8,8 +8,6 @@ use crate::vulkan::utils::ImageUsage;
 use vulkan_raw::{VkCommandBuffer, VkDeviceMemory, VkExtent3D, VkFence, VkFormat, VkFramebuffer, VkImage, VkImageAspectFlags, VkImageType, VkImageView, VkImageViewType, VkRenderPass, VkSampleCountFlags, VkSemaphore};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::keyboard::KeyCode;
-use winit::platform::wayland::EventLoopBuilderExtWayland;
-use winit::platform::x11::EventLoopBuilderExtX11;
 
 pub fn create_window(settings: Settings) {
     let mut vulkan = Vulkan::default();
@@ -24,6 +22,8 @@ pub fn create_window(settings: Settings) {
 
     #[cfg(target_os = "linux")]
     {
+        use winit::platform::wayland::EventLoopBuilderExtWayland;
+        use winit::platform::x11::EventLoopBuilderExtX11;
         if crate::vulkan::platform::is_wayland() {
             event_loop.with_wayland();
         } else {

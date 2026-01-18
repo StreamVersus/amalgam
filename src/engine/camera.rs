@@ -1,4 +1,6 @@
+use crate::engine::shapes::ray::Ray;
 use ultraviolet::{Mat3, Mat4, Rotor3, Vec3, Vec4};
+
 #[derive(Debug, Clone, Copy)]
 pub struct Camera {
     pub position: Vec3,
@@ -44,7 +46,7 @@ impl Camera {
     }
 
     pub fn rotate(&mut self, yaw: Rotor3, pitch: Rotor3) {
-        self.rotation = yaw * self.rotation * pitch;
+        self.rotation = self.rotation * yaw * pitch;
         self.rot_matrix_dirty = true;
         self.inv_rot_matrix_dirty = true;
     }
@@ -135,6 +137,10 @@ impl Camera {
             Vec4::new(0.0, 0.0, (self.far_plane + self.near_plane) * range_inv, -1.0),
             Vec4::new(0.0, 0.0, 2.0 * self.far_plane * self.near_plane * range_inv, 0.0),
         )
+    }
+    
+    pub fn as_ray(&mut self) -> Ray {
+        Ray::new(self.position, self.forward_direction())
     }
 
     fn cotan(a: f32) -> f32 {

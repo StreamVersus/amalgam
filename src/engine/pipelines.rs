@@ -27,7 +27,6 @@ pub fn create_pipelines_multithreaded(use_caches: bool, pipeline_infos: Vec<Grap
     let pipelines = std::thread::scope(|s| {
         let handles: Vec<_> = pipeline_infos.as_slice()
             .chunks(thread_count)
-            .into_iter()
             .map(|info_chunk| {
                 let mut cache_pool = CachePool::new(&cache_data.cache_blob, vulkan.clone());
                 s.spawn(move || {
@@ -84,15 +83,18 @@ fn validate_caches(vulkan: &Vulkan) -> Cache {
         },
     }
 }
-
+#[inline(always)]
 fn devalidate(vulkan: &Vulkan) -> Cache {
     #[cfg(debug_assertions)] println!("Cache devalidated");
     create_new_cache(vulkan)
 }
+
+#[inline(always)]
 pub fn compression_algo(bytes: &[u8]) -> Vec<u8> {
     lz4_flex::compress_prepend_size(bytes)
 }
 
+#[inline(always)]
 pub fn decompression_algo(bytes: &[u8]) -> Vec<u8> {
     lz4_flex::decompress_size_prepended(bytes).unwrap_or_else(|err|  panic!("{}", err))
 }

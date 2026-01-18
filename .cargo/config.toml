@@ -9,6 +9,6 @@ strip = true
 
 [build]
 rustflags = [
-    "-C", "target-cpu=native",
+    "-C", "target-feature=+avx,+sse,+fma",
 ]
 rustc-wrapper = "sccache"

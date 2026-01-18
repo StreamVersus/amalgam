@@ -2,12 +2,12 @@ use crate::safe_ptr;
 use crate::vulkan::func::Vulkan;
 use crate::vulkan::platform::device_extensions;
 use crate::vulkan::r#impl::queues::QueueInfo;
+use crate::vulkan::utils::{null_terminated_str, null_terminated_string};
 use std::collections::HashSet;
-use std::ffi::c_char;
+use std::ffi::{c_char, c_void};
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
-use vulkan_raw::{vkCreateDevice, vkDestroyDevice, vkEnumerateDeviceExtensionProperties, vkEnumeratePhysicalDevices, vkGetPhysicalDeviceFeatures, vkGetPhysicalDeviceFormatProperties, vkGetPhysicalDeviceMemoryProperties, vkGetPhysicalDeviceProperties, ApiVersion, VkBool32, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo, VkExtensionProperties, VkFormat, VkFormatProperties, VkPhysicalDevice, VkPhysicalDeviceFeatures, VkPhysicalDeviceMemoryProperties, VkPhysicalDeviceProperties, VkQueue, VkResult};
-use crate::vulkan::utils::{null_terminated_str, null_terminated_string};
+use vulkan_raw::{vkCreateDevice, vkDestroyDevice, vkEnumerateDeviceExtensionProperties, vkEnumeratePhysicalDevices, vkGetPhysicalDeviceFeatures, vkGetPhysicalDeviceFormatProperties, vkGetPhysicalDeviceMemoryProperties, vkGetPhysicalDeviceProperties, ApiVersion, VkBool32, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo, VkExtensionProperties, VkFormat, VkFormatProperties, VkPhysicalDevice, VkPhysicalDeviceFeatures, VkPhysicalDeviceMemoryProperties, VkPhysicalDeviceProperties, VkPhysicalDeviceVulkan12Features, VkQueue};
 
 impl Vulkan {
     pub fn get_devices(&self) -> Vec<VkPhysicalDevice> {
@@ -19,7 +19,7 @@ impl Vulkan {
         };
         
         assert_ne!(device_count, 0);
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         let mut devices: Vec<VkPhysicalDevice> = Vec::with_capacity(device_count as usize);
         let spare = devices.spare_capacity_mut();
@@ -27,7 +27,7 @@ impl Vulkan {
             vkEnumeratePhysicalDevices(instance, &mut device_count, spare.as_mut_ptr() as *mut VkPhysicalDevice)
         };
         assert_ne!(device_count, 0);
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         unsafe {
             devices.set_len(device_count as usize);
@@ -42,7 +42,7 @@ impl Vulkan {
             vkEnumerateDeviceExtensionProperties(device, null_mut(), &mut extension_count, null_mut())
         };
         assert_ne!(extension_count, 0);
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         let mut extensions : Vec<VkExtensionProperties> = Vec::with_capacity(extension_count as usize);
         let spare = extensions.spare_capacity_mut();
@@ -50,7 +50,7 @@ impl Vulkan {
             vkEnumerateDeviceExtensionProperties(device, null_mut(), &mut extension_count, spare.as_mut_ptr() as *mut VkExtensionProperties)
         };
         assert_ne!(extension_count, 0);
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         unsafe {
             extensions.set_len(extension_count as usize);
@@ -122,7 +122,14 @@ impl Vulkan {
             let mut layers: Vec<*const c_char> = vec![];
             layers.push("VK_AMD_anti_lag\0".as_ptr() as *const c_char);
 
+            let vulkan_12_features = VkPhysicalDeviceVulkan12Features {
+                pNext: null_mut(),
+                vulkanMemoryModel: VkBool32::TRUE,
+                ..Default::default()
+            };
+
             let device_create_info = VkDeviceCreateInfo {
+                pNext: &vulkan_12_features as *const _ as *const c_void,
                 queueCreateInfoCount: queue_create_info.len() as u32,
                 pQueueCreateInfos: queue_create_info.as_ptr(),
                 enabledLayerCount: layers.len() as u32,
@@ -134,7 +141,7 @@ impl Vulkan {
             };
             let mut logical_device = VkDevice::none();
             let result = unsafe { vkCreateDevice(device, &device_create_info, null(), &mut logical_device) };
-            assert_eq!(result, VkResult::SUCCESS);
+            assert!(result.is_ok());
             
             let memory_properties = self.get_memory_properties(device);
 

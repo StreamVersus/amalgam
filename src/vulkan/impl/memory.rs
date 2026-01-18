@@ -1,9 +1,9 @@
+use crate::vulkan::func::{Destructible, Vulkan};
+use crate::vulkan::utils::align_up;
 use std::any::Any;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
-use crate::vulkan::func::{Destructible, Vulkan};
-use crate::vulkan::utils::align_up;
 use std::os::raw::c_void;
 use std::ptr::null_mut;
 use vulkan_raw::{vkAllocateMemory, vkFlushMappedMemoryRanges, vkFreeMemory, vkMapMemory, vkUnmapMemory, VkBindBufferMemoryInfo, VkBindImageMemoryInfo, VkBuffer, VkDeviceMemory, VkImage, VkMappedMemoryRange, VkMemoryAllocateInfo, VkMemoryDedicatedAllocateInfo, VkMemoryMapFlagBits, VkMemoryPropertyFlags, VkMemoryRequirements, VkResult};
@@ -29,7 +29,7 @@ impl Vulkan {
         };
         let mut memory_object = VkDeviceMemory::none();
         let result = unsafe { vkAllocateMemory(self.get_loaded_device().logical_device, &allocate_info, null_mut(), &mut memory_object) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         memory_object
     }
@@ -60,7 +60,7 @@ impl Vulkan {
 
         let mut memory_object = VkDeviceMemory::none();
         let result = unsafe { vkAllocateMemory(self.get_loaded_device().logical_device, &allocate_info, null_mut(), &mut memory_object) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         memory_object
     }
@@ -68,7 +68,7 @@ impl Vulkan {
     pub fn map_memory(&self, info: &MemoryInfo) -> *mut c_void {
         let mut pointer: *mut c_void = null_mut();
         let result = unsafe{ vkMapMemory(self.get_loaded_device().logical_device, info.memory_object, info.offset, info.data_size, VkMemoryMapFlagBits::empty(), &mut pointer) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         
         pointer
     }
@@ -239,14 +239,14 @@ impl AllocationTask {
                 let mut dedicated_req = req.clone();
                 dedicated_req.size = aligned_size;
 
-                let memory = vulkan.allocate_dedicated_memory(allocatable.as_any(), req.clone(), self.flags);
+                let memory = vulkan.allocate_dedicated_memory(allocatable.as_any(), dedicated_req, self.flags);
                 Self::add_bind_task(&mut buffer_bind_tasks, &mut image_bind_tasks, &mut info, allocatable.as_any(), memory, 0, req.size);
-            } else {
-                total_size = align_up(total_size, req.alignment);
-                total_size += align_up(req.size, atom_size);
-
-                requirements.push(req);
+                continue
             }
+            total_size = align_up(total_size, req.alignment);
+            total_size += align_up(req.size, atom_size);
+
+            requirements.push(req);
         }
         total_size = align_up(total_size, atom_size);
 
@@ -334,6 +334,14 @@ impl AllocationInfo {
         });
 
         memory_objects
+    }
+
+    pub fn get_all_info(&self) -> Vec<MemoryInfo> {
+        let mut images: Vec<MemoryInfo> = self.image_info.values().cloned().collect();
+        let buffers: Vec<MemoryInfo> = self.buffer_info.values().cloned().collect();
+        images.extend(buffers.into_iter());
+        
+        images
     }
 }
 trait Allocatable: Send + Sync + Any {

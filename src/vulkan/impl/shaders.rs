@@ -1,7 +1,7 @@
 use crate::vulkan::func::{Destructible, Vulkan};
 use std::ffi::CString;
 use std::ptr::null_mut;
-use vulkan_raw::{vkCreateShaderModule, vkDestroyShaderModule, VkPipelineShaderStageCreateInfo, VkResult, VkShaderModule, VkShaderModuleCreateInfo, VkShaderStageFlags, VkSpecializationInfo};
+use vulkan_raw::{vkCreateShaderModule, vkDestroyShaderModule, VkPipelineShaderStageCreateInfo, VkShaderModule, VkShaderModuleCreateInfo, VkShaderStageFlags, VkSpecializationInfo};
 
 impl Vulkan {
     pub fn create_shader_module(&self, shader_bytecode: &[u8]) -> VkShaderModule {
@@ -13,7 +13,7 @@ impl Vulkan {
 
         let mut shader_module = VkShaderModule::none();
         let result = unsafe { vkCreateShaderModule(self.get_loaded_device().logical_device, &shader_module_create_info, null_mut(), &mut shader_module) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         shader_module
     }

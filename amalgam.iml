@@ -6,9 +6,15 @@
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/vulkan_raw/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/vulkan_raw.bak/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/shaders/fragment/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/shaders/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/shaders/vertex/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/vulkan_raw/target" />
       <excludeFolder url="file://$MODULE_DIR$/vulkan_raw.bak/target" />
+      <excludeFolder url="file://$MODULE_DIR$/shaders/fragment/target" />
+      <excludeFolder url="file://$MODULE_DIR$/shaders/target" />
+      <excludeFolder url="file://$MODULE_DIR$/shaders/vertex/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

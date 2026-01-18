@@ -1,6 +1,6 @@
 use crate::vulkan::func::{bool_to_vkbool, Vulkan};
 use crate::vulkan::r#impl::pipelines::{GraphicsPipelineCreateInfo, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineTessellationStateCreateInfo};
-use crate::vulkan::shaders::{GRAPHIC_FRAG, GRAPHIC_VERT};
+use shaders::{FRAGMENT_SHADER, VERTEX_SHADER};
 use vulkan_raw::{VkBlendFactor, VkBlendOp, VkBool32, VkColorComponentFlags, VkCompareOp, VkCullModeFlags, VkDescriptorSetLayout, VkDynamicState, VkExtent2D, VkFrontFace, VkLogicOp, VkPipelineLayout, VkPipelineShaderStageCreateFlags, VkPolygonMode, VkPrimitiveTopology, VkRenderPass, VkSampleCountFlagBits, VkSampleCountFlags, VkShaderStageFlags, VkStencilOp, VkStencilOpState};
 
 pub fn preset_graphic_pipeline(vulkan: &Vulkan, width: u32, height: u32, render_pass: VkRenderPass, subpass: u32, descriptor_set_layouts: &[VkDescriptorSetLayout]) -> (GraphicsPipelineCreateInfo, VkPipelineLayout) {
@@ -10,8 +10,8 @@ pub fn preset_graphic_pipeline(vulkan: &Vulkan, width: u32, height: u32, render_
 
     let layout = vulkan.create_pipeline_layout(descriptor_set_layouts, push_constant_ranges);
 
-    let vertex_shader_module = vulkan.create_shader_module(GRAPHIC_VERT);
-    let frag_shader_module = vulkan.create_shader_module(GRAPHIC_FRAG);
+    let vertex_shader_module = vulkan.create_shader_module(VERTEX_SHADER);
+    let frag_shader_module = vulkan.create_shader_module(FRAGMENT_SHADER);
 
     (GraphicsPipelineCreateInfo {
         flags: Default::default(),

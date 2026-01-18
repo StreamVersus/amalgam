@@ -56,7 +56,7 @@ impl Vulkan {
         let mut format_count: u32 = 0;
 
         let mut result = unsafe { vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &mut format_count, null_mut()) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         assert_ne!(format_count, 0);
 
         let mut surface_formats: Vec<VkSurfaceFormatKHR> = Vec::with_capacity(format_count as usize);
@@ -64,7 +64,7 @@ impl Vulkan {
         unsafe {
             result = vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &mut format_count, spare.as_mut_ptr() as *mut VkSurfaceFormatKHR);
         }
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         assert_ne!(format_count, 0);
 
         unsafe {
@@ -122,7 +122,7 @@ impl Vulkan {
 
         let mut swapchain = VkSwapchainKHR::none();
         let result = unsafe { vkCreateSwapchainKHR(self.get_loaded_device().logical_device, &swapchain_create_info, null_mut(), &mut swapchain) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         assert_ne!(swapchain, VkSwapchainKHR::none());
         
         //destroy old one
@@ -136,7 +136,7 @@ impl Vulkan {
         let mut image: u32 = 0;
         let result = unsafe { vkAcquireNextImageKHR(self.get_loaded_device().logical_device, swapchain_info.swapchain, 2000000000, semaphore, fence, &mut image) };
         if result != VkResult::SUCCESS && result != VkResult::SUBOPTIMAL_KHR {
-            panic!("Failed to acquire next image: {:?}", result);
+            panic!("Failed to acquire next image: {:?}", result as i32);
         }
         
         image
@@ -145,12 +145,12 @@ impl Vulkan {
     pub fn get_images(&self, swapchain_info: &SwapchainInfo) -> Vec<VkImage> {
         let mut swapchain_image_count = 0u32;
         let result = unsafe { vkGetSwapchainImagesKHR(self.get_loaded_device().logical_device, swapchain_info.swapchain, &mut swapchain_image_count, null_mut()) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         assert_ne!(swapchain_image_count, 0);
 
         let mut images = Vec::with_capacity(swapchain_image_count as usize);
         let result = unsafe { vkGetSwapchainImagesKHR(self.get_loaded_device().logical_device, swapchain_info.swapchain, &mut swapchain_image_count, images.as_mut_ptr()) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         assert_ne!(swapchain_image_count, 0);
 
         unsafe { images.set_len(swapchain_image_count as usize) };
@@ -177,7 +177,7 @@ impl Vulkan {
         };
         
         let result = unsafe { vkQueuePresentKHR(queue, &image_presentation_info) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
     }
     
     pub fn destroy_swapchain(&self, swapchain: VkSwapchainKHR) {

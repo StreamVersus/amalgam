@@ -1,6 +1,6 @@
-use std::ffi::c_void;
 use crate::vulkan::func::{Destructible, Vulkan};
 use crate::vulkan::utils::BufferUsage;
+use std::ffi::c_void;
 use std::mem::MaybeUninit;
 use std::ptr::null_mut;
 use vulkan_raw::{vkBindBufferMemory, vkBindBufferMemory2, vkCmdCopyBuffer, vkCmdCopyBufferToImage, vkCmdPipelineBarrier, vkCreateBuffer, vkCreateBufferView, vkDestroyBuffer, vkDestroyBufferView, vkGetBufferMemoryRequirements, vkGetBufferMemoryRequirements2, VkAccessFlags, VkBindBufferMemoryInfo, VkBuffer, VkBufferCopy, VkBufferCreateInfo, VkBufferImageCopy, VkBufferMemoryBarrier, VkBufferMemoryRequirementsInfo2, VkBufferView, VkBufferViewCreateInfo, VkCommandBuffer, VkDependencyFlags, VkFormat, VkFormatFeatureFlags, VkImage, VkImageLayout, VkMemoryDedicatedRequirements, VkMemoryRequirements, VkMemoryRequirements2, VkPipelineStageFlags, VkResult, VkSharingMode, VkVersion, VK_WHOLE_SIZE};
@@ -74,7 +74,7 @@ impl Vulkan {
         
         let mut buffer_view = VkBufferView::none();
         let result = unsafe { vkCreateBufferView(self.get_loaded_device().logical_device, &buffer_view_create_info, null_mut(), &mut buffer_view ) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         
         buffer_view
     }
@@ -131,30 +131,30 @@ impl Vulkan {
     }
     
     pub fn buffer_to_buffer(&self, regions: Vec<VkBufferCopy>, command_buffer: VkCommandBuffer, src_buffer: VkBuffer, dst_buffer: VkBuffer) {
-        if regions.len() > 0 {
+        if !regions.is_empty() {
             unsafe { vkCmdCopyBuffer(command_buffer, src_buffer, dst_buffer, regions.len() as u32, regions.as_ptr()); };
         }
     }
 
     pub fn buffer_to_image(&self, regions: Vec<VkBufferImageCopy>, command_buffer: VkCommandBuffer, src_buffer: VkBuffer, dst_image: VkImage, dst_image_layout: VkImageLayout) {
-        if regions.len() > 0 {
+        if !regions.is_empty() {
             unsafe { vkCmdCopyBufferToImage(command_buffer, src_buffer, dst_image, dst_image_layout, regions.len() as u32, regions.as_ptr()); };
         }
     }
 
     pub fn bind_memory_to_buffer(&self, infos: Vec<VkBindBufferMemoryInfo>) {
         let device = self.get_loaded_device().logical_device;
-        if infos.len() == 0 {
+        if infos.is_empty() {
             return;
         }
 
         if self.is_version_supported(VkVersion::V1_1) {
             let result = unsafe { vkBindBufferMemory2(device, infos.len() as u32, infos.as_ptr()) };
-            assert_eq!(result, VkResult::SUCCESS);
+            assert!(result.is_ok());
         } else {
             for info in infos {
                 let result = unsafe { vkBindBufferMemory(device, info.buffer, info.memory, info.memoryOffset) };
-                assert_eq!(result, VkResult::SUCCESS);
+                assert!(result.is_ok());
             }
         }
     }
@@ -184,16 +184,16 @@ impl Default for BufferTransition {
     }
 }
 
-impl Into<VkBufferMemoryBarrier> for BufferTransition {
-    fn into(self) -> VkBufferMemoryBarrier {
+impl From<BufferTransition> for VkBufferMemoryBarrier {
+    fn from(value: BufferTransition) -> Self {
         VkBufferMemoryBarrier {
-            srcAccessMask: self.current_access,
-            dstAccessMask: self.new_access,
-            srcQueueFamilyIndex: self.current_queue_family_index,
-            dstQueueFamilyIndex: self.new_queue_family_index,
-            buffer: self.buffer,
-            offset: self.offset,
-            size: self.size,
+            srcAccessMask: value.current_access,
+            dstAccessMask: value.new_access,
+            srcQueueFamilyIndex: value.current_queue_family_index,
+            dstQueueFamilyIndex: value.new_queue_family_index,
+            buffer: value.buffer,
+            offset: value.offset,
+            size: value.size,
             ..Default::default()
         }
     }

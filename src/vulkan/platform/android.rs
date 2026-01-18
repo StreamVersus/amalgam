@@ -1,7 +1,7 @@
-use android_activity::AndroidApp;
-use vulkan_raw::VkExtensionProperties;
 use crate::both::logic_loop;
 use crate::engine::{create_window, Settings};
+use android_activity::AndroidApp;
+use vulkan_raw::VkExtensionProperties;
 
 #[unsafe(no_mangle)]
 fn android_main(app: AndroidApp) {

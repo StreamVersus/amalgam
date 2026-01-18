@@ -1,9 +1,9 @@
-use std::collections::HashSet;
 use crate::application::WINDOW_TITLE;
 use crate::both::RenderLoop;
 use crate::engine::{Delta, Settings};
 use crate::vulkan::func::Vulkan;
 use crate::vulkan::r#impl::swapchain::SwapchainInfo;
+use std::collections::HashSet;
 use vulkan_raw::{VkSurfaceKHR, VkSwapchainKHR};
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;

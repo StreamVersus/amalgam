@@ -59,7 +59,7 @@ impl Vulkan {
 
         let mut image_view = VkImageView::none();
         let result = unsafe { vkCreateImageView(self.get_loaded_device().logical_device, &image_view_create_info, null_mut(), &mut image_view) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         image_view
     }
@@ -147,11 +147,11 @@ impl Vulkan {
         
         if self.is_version_supported(VkVersion::V1_1) {
             let result = unsafe { vkBindImageMemory2(device, infos.len() as u32, infos.as_ptr()) };
-            assert_eq!(result, VkResult::SUCCESS);
+            assert!(result.is_ok());
         } else {
             for info in infos {
                 let result = unsafe { vkBindImageMemory(device, info.image, info.memory, info.memoryOffset) };
-                assert_eq!(result, VkResult::SUCCESS);
+                assert!(result.is_ok());
             }
         }
     }

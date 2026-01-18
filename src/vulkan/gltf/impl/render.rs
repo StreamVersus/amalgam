@@ -1,23 +1,20 @@
 use crate::vulkan::func::{Destructible, Vulkan};
 use crate::vulkan::gltf::scene::Scene;
-use crate::vulkan::gltf::utils::IndirectParameters;
+use crate::vulkan::gltf::utils::{IndirectParameters, StagingBuffer};
 use crate::vulkan::r#impl::command_buffer::RecordingInfo;
 use crate::vulkan::r#impl::image::ImageTransition;
-use crate::vulkan::r#impl::memory::AllocationTask;
-use crate::vulkan::utils::BufferUsage;
 use vulkan_raw::{vkCmdDrawIndexedIndirect, VkAccessFlags, VkBufferCopy, VkBufferImageCopy, VkCommandBuffer, VkCommandBufferLevel, VkCommandBufferUsageFlags, VkCommandPoolCreateFlags, VkDeviceSize, VkFence, VkImageAspectFlags, VkImageLayout, VkImageSubresourceLayers, VkIndexType, VkPipelineBindPoint, VkPipelineLayout, VkPipelineStageFlags, VK_QUEUE_FAMILY_IGNORED};
 
 impl Scene {
-    pub fn prepare(&mut self, vulkan: &Vulkan) {
+    pub fn prepare(&mut self, vulkan: &Vulkan, staging: &mut StagingBuffer) {
         let mut max_staging_size = self.idx_size + self.parameters_size;
         for image in &self.texture_images {
             max_staging_size += image.size as u64;
         }
 
-        let staging_buffer = vulkan.create_buffer(max_staging_size, BufferUsage::preset_staging()).unwrap();
-        let info = AllocationTask::host_cached().add_allocatable(staging_buffer).allocate_all(vulkan);
-        let staging_info = info.pull_buffer_info(&staging_buffer);
-        let staging_ptr = vulkan.map_memory(&staging_info);
+        let staging_buffer = staging.pull(max_staging_size, vulkan);
+        let staging_info = staging.info();
+        let staging_ptr = vulkan.map_memory(staging_info);
 
         let command_pool = vulkan.create_command_pool(vulkan.get_loaded_device().queue_info[0].family_index, VkCommandPoolCreateFlags::empty());
         let one_time_command_buffer = vulkan.alloc_command_buffers(command_pool, VkCommandBufferLevel::PRIMARY, 1)[0];
@@ -41,7 +38,7 @@ impl Scene {
                 current_offset += image.size as u64;
             }
         }
-        vulkan.flush_memory(&[staging_info]);
+        vulkan.flush_memory(&[*staging_info]);
 
         vulkan.start_recording(one_time_command_buffer, VkCommandBufferUsageFlags::ONE_TIME_SUBMIT_BIT, RecordingInfo {
             renderPass: Default::default(),
@@ -115,9 +112,6 @@ impl Scene {
         vulkan.end_recording(one_time_command_buffer);
         vulkan.submit_buffer(vulkan.get_queues()[0], VkFence::none(), &[one_time_command_buffer], &[], &[]);
         vulkan.wait_for_queue(vulkan.get_queues()[0]);
-
-        staging_buffer.destroy(vulkan);
-        info.get_all_memory_objects().into_iter().for_each(|memory_object| { memory_object.destroy(vulkan); });
 
         vulkan.free_buffers(command_pool, &[one_time_command_buffer]);
         command_pool.destroy(vulkan);

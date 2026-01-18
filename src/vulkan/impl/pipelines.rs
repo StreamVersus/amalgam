@@ -1,10 +1,10 @@
+use crate::vulkan::func::{Destructible, Vulkan};
+use crate::vulkan::gltf::scene::Vertex;
+use crate::{null_if_none, safe_ptr};
 use std::any::Any;
 use std::ffi::c_void;
 use std::ptr::{null, null_mut};
-use vulkan_raw::{vkCmdBindIndexBuffer, vkCmdBindPipeline, vkCmdBindVertexBuffers, vkCmdPushConstants, vkCmdSetScissor, vkCmdSetViewport, vkCreateComputePipelines, vkCreateGraphicsPipelines, vkCreatePipelineCache, vkCreatePipelineLayout, vkDestroyPipeline, vkDestroyPipelineCache, vkDestroyPipelineLayout, vkGetPipelineCacheData, vkMergePipelineCaches, VkBlendFactor, VkBlendOp, VkBool32, VkBuffer, VkColorComponentFlags, VkCommandBuffer, VkCompareOp, VkComputePipelineCreateInfo, VkCullModeFlags, VkDescriptorSetLayout, VkDeviceSize, VkDynamicState, VkExtent2D, VkFormat, VkFrontFace, VkGraphicsPipelineCreateInfo, VkIndexType, VkLogicOp, VkOffset2D, VkPipeline, VkPipelineBindPoint, VkPipelineCache, VkPipelineCacheCreateInfo, VkPipelineColorBlendAttachmentState, VkPipelineColorBlendStateCreateFlags, VkPipelineColorBlendStateCreateInfo, VkPipelineCreateFlags, VkPipelineDepthStencilStateCreateFlags, VkPipelineDepthStencilStateCreateInfo, VkPipelineDynamicStateCreateFlags, VkPipelineDynamicStateCreateInfo, VkPipelineInputAssemblyStateCreateFlags, VkPipelineInputAssemblyStateCreateInfo, VkPipelineLayout, VkPipelineLayoutCreateInfo, VkPipelineMultisampleStateCreateFlags, VkPipelineMultisampleStateCreateInfo, VkPipelineRasterizationStateCreateFlags, VkPipelineRasterizationStateCreateInfo, VkPipelineShaderStageCreateFlags, VkPipelineShaderStageCreateInfo, VkPipelineTessellationStateCreateFlags, VkPipelineTessellationStateCreateInfo, VkPipelineVertexInputStateCreateFlags, VkPipelineVertexInputStateCreateInfo, VkPipelineViewportStateCreateFlags, VkPipelineViewportStateCreateInfo, VkPolygonMode, VkPrimitiveTopology, VkPushConstantRange, VkRect2D, VkRenderPass, VkResult, VkSampleCountFlagBits, VkSampleMask, VkShaderModule, VkShaderStageFlagBits, VkShaderStageFlags, VkSpecializationInfo, VkSpecializationMapEntry, VkStencilOpState, VkVertexInputAttributeDescription, VkVertexInputBindingDescription, VkVertexInputRate, VkViewport};
-use crate::{null_if_none, safe_ptr};
-use crate::vulkan::func::{Destructible, Vulkan};
-use crate::vulkan::gltf::scene::Vertex;
+use vulkan_raw::{vkCmdBindIndexBuffer, vkCmdBindPipeline, vkCmdBindVertexBuffers, vkCmdPushConstants, vkCmdSetScissor, vkCmdSetViewport, vkCreateComputePipelines, vkCreateGraphicsPipelines, vkCreatePipelineCache, vkCreatePipelineLayout, vkDestroyPipeline, vkDestroyPipelineCache, vkDestroyPipelineLayout, vkGetPipelineCacheData, vkMergePipelineCaches, VkBlendFactor, VkBlendOp, VkBool32, VkBuffer, VkColorComponentFlags, VkCommandBuffer, VkCompareOp, VkComputePipelineCreateInfo, VkCullModeFlags, VkDescriptorSetLayout, VkDeviceSize, VkDynamicState, VkExtent2D, VkFormat, VkFrontFace, VkGraphicsPipelineCreateInfo, VkIndexType, VkLogicOp, VkOffset2D, VkPipeline, VkPipelineBindPoint, VkPipelineCache, VkPipelineCacheCreateInfo, VkPipelineColorBlendAttachmentState, VkPipelineColorBlendStateCreateFlags, VkPipelineColorBlendStateCreateInfo, VkPipelineCreateFlags, VkPipelineDepthStencilStateCreateFlags, VkPipelineDepthStencilStateCreateInfo, VkPipelineDynamicStateCreateFlags, VkPipelineDynamicStateCreateInfo, VkPipelineInputAssemblyStateCreateFlags, VkPipelineInputAssemblyStateCreateInfo, VkPipelineLayout, VkPipelineLayoutCreateInfo, VkPipelineMultisampleStateCreateFlags, VkPipelineMultisampleStateCreateInfo, VkPipelineRasterizationStateCreateFlags, VkPipelineRasterizationStateCreateInfo, VkPipelineShaderStageCreateFlags, VkPipelineShaderStageCreateInfo, VkPipelineTessellationStateCreateFlags, VkPipelineTessellationStateCreateInfo, VkPipelineVertexInputStateCreateFlags, VkPipelineVertexInputStateCreateInfo, VkPipelineViewportStateCreateFlags, VkPipelineViewportStateCreateInfo, VkPolygonMode, VkPrimitiveTopology, VkPushConstantRange, VkRect2D, VkRenderPass, VkSampleCountFlagBits, VkSampleMask, VkShaderModule, VkShaderStageFlagBits, VkShaderStageFlags, VkSpecializationInfo, VkSpecializationMapEntry, VkStencilOpState, VkVertexInputAttributeDescription, VkVertexInputBindingDescription, VkVertexInputRate, VkViewport};
 
 impl Vulkan {
     #[inline]
@@ -81,7 +81,7 @@ impl Vulkan {
 
         let mut pipeline_layout = VkPipelineLayout::none();
         let result = unsafe { vkCreatePipelineLayout(self.get_loaded_device().logical_device, &pipeline_layout_create_info, null_mut(), &mut pipeline_layout) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         pipeline_layout
     }
@@ -117,7 +117,7 @@ impl Vulkan {
             renderPass: render_pass,
             subpass,
             basePipelineHandle: base_pipeline.unwrap_or_default(),
-            basePipelineIndex: base_pipeline_index.unwrap_or_else(|| -1),
+            basePipelineIndex: base_pipeline_index.unwrap_or(-1),
             ..Default::default()
         }
     }
@@ -131,7 +131,7 @@ impl Vulkan {
 
         let mut cache = VkPipelineCache::none();
         let result = unsafe { vkCreatePipelineCache(self.get_loaded_device().logical_device, &pipeline_cache_create_info, null_mut(), &mut cache) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         cache
     }
@@ -139,7 +139,7 @@ impl Vulkan {
     pub fn get_data_from_pipeline_cache(&self, cache: VkPipelineCache) -> Vec<u8> {
         let mut data_size = 0;
         let result = unsafe { vkGetPipelineCacheData(self.get_loaded_device().logical_device, cache, &mut data_size, null_mut()) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         if data_size == 0 {
             return Vec::new();
@@ -151,7 +151,7 @@ impl Vulkan {
         let result = unsafe {
             vkGetPipelineCacheData(self.get_loaded_device().logical_device, cache, &mut data_size, spare.as_mut_ptr() as *mut c_void)
         };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         unsafe {
             cache_data.set_len(data_size);
@@ -162,7 +162,7 @@ impl Vulkan {
 
     pub fn merge_pipeline_caches(&self, src_caches: Vec<VkPipelineCache>, dst_cache: &VkPipelineCache) {
         let result = unsafe { vkMergePipelineCaches(self.get_loaded_device().logical_device, *dst_cache, src_caches.len() as u32, src_caches.as_ptr()) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
     }
 
     pub fn create_graphic_pipelines(&self, pipeline_infos: &[GraphicsPipelineCreateInfo], cache: VkPipelineCache) -> Vec<VkPipeline> {
@@ -173,7 +173,7 @@ impl Vulkan {
             .map(|info| info.to_vulkan())
             .unzip();
         let result = unsafe { vkCreateGraphicsPipelines(self.get_loaded_device().logical_device, cache, pipeline_infos.len() as u32, pipeline_infos.as_ptr(), null_mut(), spare.as_mut_ptr() as *mut VkPipeline) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         unsafe {
             graphic_pipelines.set_len(pipeline_infos.len());
         }
@@ -193,7 +193,7 @@ impl Vulkan {
 
         let mut pipeline = VkPipeline::none();
         let result = unsafe { vkCreateComputePipelines(self.get_loaded_device().logical_device, cache.unwrap_or_default(), 1, &compute_pipeline_create_info, null_mut(), &mut pipeline) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         pipeline
     }
@@ -212,8 +212,9 @@ impl Vulkan {
     pub fn bind_index_buffer(&self, command_buffer: VkCommandBuffer, buffer: VkBuffer, offset: u64, index_type: VkIndexType) {
         unsafe { vkCmdBindIndexBuffer(command_buffer, buffer, offset, index_type); }
     }
-
-    pub fn set_push_constants(&self, command_buffer: VkCommandBuffer, layout: VkPipelineLayout, stage_flags: VkShaderStageFlags, offset: u32, size: u32, data: *const c_void) {
+    /// # Safety
+    /// Check passed data pointers
+    pub unsafe fn set_push_constants(&self, command_buffer: VkCommandBuffer, layout: VkPipelineLayout, stage_flags: VkShaderStageFlags, offset: u32, size: u32, data: *const c_void) {
         unsafe { vkCmdPushConstants(command_buffer, layout, stage_flags, offset, size, data); }
     }
 
@@ -277,12 +278,12 @@ pub struct ViewportInfo {
     pub scissors: Vec<VkRect2D>,
 }
 
-impl Into<PipelineViewportStateCreateInfo> for ViewportInfo {
-    fn into(self) -> PipelineViewportStateCreateInfo {
+impl From<ViewportInfo> for PipelineViewportStateCreateInfo {
+    fn from(value: ViewportInfo) -> Self {
         PipelineViewportStateCreateInfo {
             flags: Default::default(),
-            viewports: self.viewports,
-            scissors: self.scissors,
+            viewports: value.viewports,
+            scissors: value.scissors,
         }
     }
 }
@@ -559,16 +560,14 @@ impl PipelineShaderStageCreateInfo {
             keep_alive.push(boxed); 
         };
 
-        let info = VkPipelineShaderStageCreateInfo {
+        VkPipelineShaderStageCreateInfo {
             flags: self.flags,
             stage: self.stage,
             module: self.module,
             pName: name_ptr,
             pSpecializationInfo: spec_ptr,
             ..Default::default()
-        };
-        
-        info
+        }
     }
 }
 
@@ -582,7 +581,6 @@ impl SpecializationInfo {
             pMapEntries: map_entries_box.as_ptr(),
             dataSize: data_box.len(),
             pData: data_box.as_ptr() as *const c_void,
-            ..Default::default()
         };
 
         keep_alive.push(map_entries_box);
@@ -614,7 +612,7 @@ impl PipelineVertexInputStateCreateInfo {
 }
 
 impl PipelineInputAssemblyStateCreateInfo {
-    pub fn to_vulkan(&self, _keep_alive: &mut Vec<Box<dyn Any>>) -> VkPipelineInputAssemblyStateCreateInfo {
+    pub fn to_vulkan(&self, _keep_alive: &mut [Box<dyn Any>]) -> VkPipelineInputAssemblyStateCreateInfo {
         VkPipelineInputAssemblyStateCreateInfo {
             flags: self.flags,
             topology: self.topology,
@@ -646,7 +644,7 @@ impl PipelineViewportStateCreateInfo {
 }
 
 impl PipelineColorBlendAttachmentState {
-    pub fn to_vulkan(&self, _keep_alive: &mut Vec<Box<dyn Any>>) -> VkPipelineColorBlendAttachmentState {
+    pub fn to_vulkan(&self, _keep_alive: &mut [Box<dyn Any>]) -> VkPipelineColorBlendAttachmentState {
         VkPipelineColorBlendAttachmentState {
             blendEnable: self.blend_enable,
             srcColorBlendFactor: self.src_color_blend_factor,
@@ -656,7 +654,6 @@ impl PipelineColorBlendAttachmentState {
             dstAlphaBlendFactor: self.dst_alpha_blend_factor,
             alphaBlendOp: self.alpha_blend_op,
             colorWriteMask: self.color_write_mask,
-            ..Default::default()
         }
     }
 }
@@ -697,7 +694,7 @@ impl PipelineDynamicStateCreateInfo {
 }
 
 impl PipelineTessellationStateCreateInfo {
-    pub fn to_vulkan(&self, _keep_alive: &mut Vec<Box<dyn Any>>) -> VkPipelineTessellationStateCreateInfo {
+    pub fn to_vulkan(&self, _keep_alive: &mut [Box<dyn Any>]) -> VkPipelineTessellationStateCreateInfo {
         VkPipelineTessellationStateCreateInfo {
             flags: self.flags,
             patchControlPoints: self.patch_control_points,
@@ -707,7 +704,7 @@ impl PipelineTessellationStateCreateInfo {
 }
 
 impl PipelineRasterizationStateCreateInfo {
-    pub fn to_vulkan(&self, _keep_alive: &mut Vec<Box<dyn Any>>) -> VkPipelineRasterizationStateCreateInfo {
+    pub fn to_vulkan(&self, _keep_alive: &mut [Box<dyn Any>]) -> VkPipelineRasterizationStateCreateInfo {
         VkPipelineRasterizationStateCreateInfo {
             flags: self.flags,
             depthClampEnable: self.depth_clamp_enable,
@@ -750,7 +747,7 @@ impl PipelineMultisampleStateCreateInfo {
 }
 
 impl PipelineDepthStencilStateCreateInfo {
-    pub fn to_vulkan(&self, _keep_alive: &mut Vec<Box<dyn Any>>) -> VkPipelineDepthStencilStateCreateInfo {
+    pub fn to_vulkan(&self, _keep_alive: &mut [Box<dyn Any>]) -> VkPipelineDepthStencilStateCreateInfo {
         VkPipelineDepthStencilStateCreateInfo {
             flags: self.flags,
             depthTestEnable: self.depth_test_enable,

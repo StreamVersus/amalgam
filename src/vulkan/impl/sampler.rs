@@ -1,12 +1,12 @@
 use crate::vulkan::func::{bool_to_vkbool, Destructible, Vulkan};
 use std::ptr::null_mut;
-use vulkan_raw::{vkCreateSampler, vkDestroySampler, VkBorderColor, VkCompareOp, VkFilter, VkResult, VkSampler, VkSamplerAddressMode, VkSamplerCreateInfo, VkSamplerMipmapMode};
+use vulkan_raw::{vkCreateSampler, vkDestroySampler, VkBorderColor, VkCompareOp, VkFilter, VkSampler, VkSamplerAddressMode, VkSamplerCreateInfo, VkSamplerMipmapMode};
 
 impl Vulkan {
     pub fn create_sampler(&self, info: SamplerInfo) -> VkSampler {
         let mut sampler = VkSampler::none();
         let result = unsafe { vkCreateSampler(self.get_loaded_device().logical_device, &info.into(), null_mut(), &mut sampler) };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
 
         sampler
     }

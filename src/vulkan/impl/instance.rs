@@ -6,7 +6,7 @@ use crate::vulkan::utils::{null_terminated_str, null_terminated_string};
 use std::collections::HashSet;
 use std::ffi::c_char;
 use std::ptr::null_mut;
-use vulkan_raw::{vkCreateInstance, vkDestroyInstance, vkEnumerateInstanceVersion, ApiVersion, VkApplicationInfo, VkInstance, VkInstanceCreateInfo, VkResult};
+use vulkan_raw::{vkCreateInstance, vkDestroyInstance, vkEnumerateInstanceVersion, ApiVersion, VkApplicationInfo, VkInstance, VkInstanceCreateInfo};
 
 impl Vulkan {
     pub fn create_instance(&mut self) {
@@ -41,7 +41,10 @@ impl Vulkan {
 
         #[allow(unused_mut)]
         let mut layers: Vec<*const c_char> = vec![];
-        #[cfg(debug_assertions)] layers.push("VK_LAYER_KHRONOS_validation\0".as_ptr() as *const c_char);
+        #[cfg(target_os="linux")]
+        {
+            #[cfg(debug_assertions)] layers.push("VK_LAYER_KHRONOS_validation\0".as_ptr() as *const c_char);
+        }
         let instance_info = VkInstanceCreateInfo {
             pApplicationInfo: &application_info,
             enabledLayerCount: layers.len() as u32,
@@ -55,7 +58,7 @@ impl Vulkan {
         let result = unsafe {
             vkCreateInstance(&instance_info, null_mut(), &mut instance)
         };
-        assert_eq!(result, VkResult::SUCCESS);
+        assert!(result.is_ok());
         
         self.instance = Some(instance);
     }

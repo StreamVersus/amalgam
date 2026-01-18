@@ -1,6 +1,6 @@
-use vulkan_raw::VkSampleCountFlags;
 use crate::both::RenderLoop;
 use crate::engine::{create_window, Callbacks, Settings};
+use vulkan_raw::VkSampleCountFlags;
 
 pub mod application;
 pub mod vulkan;
