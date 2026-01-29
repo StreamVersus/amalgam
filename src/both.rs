@@ -1,18 +1,16 @@
 use crate::engine::camera::Camera;
 use crate::engine::fps::GpuTimer;
 use crate::engine::pipelines::create_pipelines_multithreaded;
-use crate::engine::shapes::declarations::fast_declaration::FastDeclaration;
 use crate::engine::shapes::AABB::{SimpleAABox, AABB4};
 use crate::engine::{PerFrameResource, PerImageResource, Settings};
-use crate::pipeline_presets::{preset_graphic_pipeline, preset_multisample, resolve_highest_multisampling};
+use crate::pipeline_presets::{preset_graphic_pipeline, preset_multisample, resolve_highest_multisampling, PipelineContainer};
 use crate::vulkan::func::{Destructible, Vulkan};
 use crate::vulkan::gltf::scene::Scene;
 use crate::vulkan::gltf::utils::StagingBuffer;
 use crate::vulkan::r#impl::command_buffer::{RecordingInfo, WaitSemaphoreInfo};
 use crate::vulkan::r#impl::memory::VkDestroy;
 use crate::vulkan::r#impl::swapchain::SwapchainInfo;
-use std::time::Instant;
-use ultraviolet::{Rotor3, Vec3};
+use ultraviolet::Vec3;
 use vulkan_raw::{vkCmdSetScissor, vkCmdSetViewport, vkQueuePresentKHR, VkClearColorValue, VkClearDepthStencilValue, VkClearValue, VkCommandBufferLevel, VkCommandBufferUsageFlags, VkCommandPool, VkCommandPoolCreateFlags, VkDescriptorSet, VkExtent2D, VkExtent3D, VkFence, VkPipeline, VkPipelineBindPoint, VkPipelineLayout, VkPipelineStageFlags, VkPresentInfoKHR, VkQueue, VkRect2D, VkRenderPass, VkSampleCountFlags, VkSubpassContents, VkViewport};
 use winit::keyboard::KeyCode;
 
@@ -25,7 +23,7 @@ pub struct RenderLoop {
     pub current_frame: usize,
 
     pub samples: VkSampleCountFlags,
-    pub graph_pipeline_layout: VkDestroy<VkPipelineLayout>,
+    pub graph_pipeline_layout: PipelineContainer,
     pub graph_pipeline: VkDestroy<VkPipeline>,
     pub render_pass: VkDestroy<VkRenderPass>,
     pub descriptor_set: VkDescriptorSet,
@@ -85,10 +83,9 @@ impl RenderLoop {
             }).collect::<Vec<_>>();
         self.command_pool = VkDestroy::new(command_pool, vulkan);
 
-        let (preset, layout) = preset_graphic_pipeline(vulkan, swapchain.width, swapchain.height, render_pass, 0, &self.scene.descriptor_layouts);
-        self.graph_pipeline_layout = VkDestroy::new(layout, vulkan);
+        self.graph_pipeline_layout = preset_graphic_pipeline(vulkan, swapchain.width, swapchain.height, render_pass, 0, &self.scene.descriptors.descriptor_layouts);
 
-        let create_info = preset_multisample(preset, supported_samples, settings.msaa);
+        let create_info = preset_multisample(self.graph_pipeline_layout.info.clone(), supported_samples, settings.msaa);
         let graph_pipeline = create_pipelines_multithreaded(true, vec![create_info], vulkan)[0];
         self.graph_pipeline = VkDestroy::new(graph_pipeline, vulkan);
 
@@ -200,7 +197,7 @@ impl RenderLoop {
         }];
         unsafe { vkCmdSetScissor(frame_resource.command_buffer(), 0, 1, scissors.as_ptr()); };
 
-        self.scene.render_scene(vulkan, frame_resource.command_buffer(), *self.graph_pipeline_layout);
+        self.scene.render_scene(vulkan, frame_resource.command_buffer(), self.graph_pipeline_layout.layout);
         // self.test_box.iter_mut().for_each(|renderable| {
         //     renderable.render(vulkan, frame_resource.command_buffer(), *self.graph_pipeline_layout);
         // });
@@ -226,30 +223,13 @@ impl RenderLoop {
         unsafe { vkQueuePresentKHR(self.present_queue, &present_info) };
 
         self.current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
-        let declarations: Vec<FastDeclaration> = self.test_box.iter()
-            .map(|_| FastDeclaration::default())
-            .collect();
-
-        let vec = self.test_box.iter()
-            .zip(declarations.iter())
-            .collect();
-        let t = Instant::now();
-        self.camera.as_ray().aabb_intersection(vec);
-        dbg!(t.elapsed());
-
-        // if let Some(elapsed_ms) = self.fps.get_elapsed_ms() {
-        //     eprintln!("GPU frame time: {:.2}ms ({:.1} FPS)", elapsed_ms, 1000.0 / elapsed_ms);
-        // }
     }
 
     pub fn handle_mouse_input(&mut self, delta: (f64, f64)) {
         let pitch = delta.1;
         let yaw = delta.0;
 
-        let pitch_rotor = Rotor3::from_rotation_yz(pitch as f32);
-        let yaw_rotor = Rotor3::from_rotation_xz(yaw as f32);
-
-        self.camera.rotate(yaw_rotor, pitch_rotor);
+        self.camera.rotate(yaw as f32, pitch as f32);
 
         self.scene.ubo.set_view(self.camera.view_matrix());
     }

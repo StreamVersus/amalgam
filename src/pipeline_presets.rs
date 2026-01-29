@@ -1,9 +1,30 @@
-use crate::vulkan::func::{bool_to_vkbool, Vulkan};
+use std::ops::Deref;
+use crate::vulkan::func::{bool_to_vkbool, Destructible, Vulkan};
 use crate::vulkan::r#impl::pipelines::{GraphicsPipelineCreateInfo, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineTessellationStateCreateInfo};
-use shaders::{FRAGMENT_SHADER, VERTEX_SHADER};
-use vulkan_raw::{VkBlendFactor, VkBlendOp, VkBool32, VkColorComponentFlags, VkCompareOp, VkCullModeFlags, VkDescriptorSetLayout, VkDynamicState, VkExtent2D, VkFrontFace, VkLogicOp, VkPipelineLayout, VkPipelineShaderStageCreateFlags, VkPolygonMode, VkPrimitiveTopology, VkRenderPass, VkSampleCountFlagBits, VkSampleCountFlags, VkShaderStageFlags, VkStencilOp, VkStencilOpState};
+use vulkan_raw::{VkBlendFactor, VkBlendOp, VkBool32, VkColorComponentFlags, VkCompareOp, VkCullModeFlags, VkDescriptorSetLayout, VkDynamicState, VkExtent2D, VkFrontFace, VkLogicOp, VkPipelineLayout, VkPipelineShaderStageCreateFlags, VkPolygonMode, VkPrimitiveTopology, VkRenderPass, VkSampleCountFlagBits, VkSampleCountFlags, VkShaderModule, VkShaderStageFlags, VkStencilOp, VkStencilOpState};
 
-pub fn preset_graphic_pipeline(vulkan: &Vulkan, width: u32, height: u32, render_pass: VkRenderPass, subpass: u32, descriptor_set_layouts: &[VkDescriptorSetLayout]) -> (GraphicsPipelineCreateInfo, VkPipelineLayout) {
+const VERTEX_SHADER: &[u8] = include_bytes!(env!("vertex.spv"));
+const FRAGMENT_SHADER: &[u8] = include_bytes!(env!("fragment.spv"));
+
+#[derive(Default)]
+pub struct PipelineContainer {
+    pub layout: VkPipelineLayout,
+    pub info: GraphicsPipelineCreateInfo,
+
+    shaders: Vec<VkShaderModule>,
+    vulkan: Vulkan,
+}
+
+impl Drop for PipelineContainer {
+    fn drop(&mut self) {
+        self.layout.destroy(&self.vulkan);
+        self.shaders.iter().for_each(|v| {
+            v.destroy(&self.vulkan);
+        })
+    }
+}
+
+pub fn preset_graphic_pipeline(vulkan: &Vulkan, width: u32, height: u32, render_pass: VkRenderPass, subpass: u32, descriptor_set_layouts: &[VkDescriptorSetLayout]) -> PipelineContainer {
     let push_constant_ranges = &[
 
     ];
@@ -13,7 +34,7 @@ pub fn preset_graphic_pipeline(vulkan: &Vulkan, width: u32, height: u32, render_
     let vertex_shader_module = vulkan.create_shader_module(VERTEX_SHADER);
     let frag_shader_module = vulkan.create_shader_module(FRAGMENT_SHADER);
 
-    (GraphicsPipelineCreateInfo {
+    let info = GraphicsPipelineCreateInfo {
         flags: Default::default(),
         stages: vec![
             PipelineShaderStageCreateInfo {
@@ -128,7 +149,15 @@ pub fn preset_graphic_pipeline(vulkan: &Vulkan, width: u32, height: u32, render_
         subpass,
         base_pipeline_handle: Default::default(),
         base_pipeline_index: -1,
-    }, layout)
+    };
+
+    PipelineContainer {
+        layout,
+        info,
+
+        shaders: vec![frag_shader_module, vertex_shader_module],
+        vulkan: vulkan.clone(),
+    }
 }
 
 pub fn preset_multisample(main_pipeline: GraphicsPipelineCreateInfo, samples: VkSampleCountFlags, cap: VkSampleCountFlags) -> GraphicsPipelineCreateInfo {
@@ -169,6 +198,7 @@ const SAMPLE_COUNTS: &[VkSampleCountFlags] = &[
     VkSampleCountFlags::SC_64_BIT,
 ];
 
+#[allow(unused)]
 fn resolve_supported_multisampling(supported_samples: VkSampleCountFlagBits, cap: VkSampleCountFlagBits) -> Vec<VkSampleCountFlags> {
     let mut ret_vec = Vec::new();
     for &sample in SAMPLE_COUNTS {

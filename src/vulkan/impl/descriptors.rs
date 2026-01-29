@@ -88,22 +88,31 @@ impl Vulkan {
         unsafe { vkCmdBindDescriptorSets(command_buffer, pipeline_bind_point, layout, first_set, descriptor_sets.len() as u32, descriptor_sets.as_ptr(), dynamic_offsets.len() as u32, dynamic_offsets.as_ptr()) }
     }
 
-    pub fn free_descriptor_sets(&mut self, descriptor_pool: VkDescriptorPool, descriptor_sets: Vec<VkDescriptorSet>) {
-        let result = unsafe { vkFreeDescriptorSets(self.get_loaded_device().logical_device, descriptor_pool, descriptor_sets.len() as u32, safe_ptr!(descriptor_sets)) };
-        assert!(result.is_ok());
+    pub fn free_descriptor_sets(&mut self, descriptor_pool: VkDescriptorPool, descriptor_sets: &[VkDescriptorSet]) {
+        if let Ok(loaded_device) = self.safe_get_loaded_device() {
+            let result = unsafe { vkFreeDescriptorSets(loaded_device.logical_device, descriptor_pool, descriptor_sets.len() as u32, safe_ptr!(descriptor_sets)) };
+            assert!(result.is_ok());
+        }
     }
 
     pub fn reset_descriptor_pool(&self, descriptor_pool: VkDescriptorPool) {
-        let result = unsafe { vkResetDescriptorPool(self.get_loaded_device().logical_device, descriptor_pool, VkDescriptorPoolResetFlagBits::empty()) };
-        assert!(result.is_ok());
+        if let Ok(loaded_device) = self.safe_get_loaded_device() {
+            let result = unsafe { vkResetDescriptorPool(loaded_device.logical_device, descriptor_pool, VkDescriptorPoolResetFlagBits::empty()) };
+            assert!(result.is_ok());
+        }
+
     }
 
     fn destroy_descriptor_pool(&self, descriptor_pool: VkDescriptorPool) {
-        unsafe { vkDestroyDescriptorPool(self.get_loaded_device().logical_device, descriptor_pool, null_mut()) };
+        if let Ok(loaded_device) = self.safe_get_loaded_device() {
+            unsafe { vkDestroyDescriptorPool(loaded_device.logical_device, descriptor_pool, null_mut()) };
+        }
     }
     
     fn destroy_descriptor_set_layout(&self, descriptor_set_layout: VkDescriptorSetLayout) {
-        unsafe { vkDestroyDescriptorSetLayout(self.get_loaded_device().logical_device, descriptor_set_layout, null_mut()) };
+        if let Ok(loaded_device) = self.safe_get_loaded_device() {
+            unsafe { vkDestroyDescriptorSetLayout(loaded_device.logical_device, descriptor_set_layout, null_mut()) };
+        }
     }
 }
 
@@ -215,5 +224,42 @@ impl Destructible for VkDescriptorPool {
 impl Destructible for VkDescriptorSetLayout {
     fn destroy(&self, vulkan: &Vulkan) {
         vulkan.destroy_descriptor_set_layout(*self);
+    }
+}
+#[derive(Default)]
+#[repr(C)]
+pub struct PooledDescriptors {
+    pub descriptor_layouts: Vec<VkDescriptorSetLayout>,
+    descriptor_sizes: Vec<VkDescriptorPoolSize>,
+    vulkan: Vulkan,
+
+    descriptor_pool: VkDescriptorPool,
+    pub descriptor_sets: Vec<VkDescriptorSet>,
+}
+
+impl PooledDescriptors {
+    pub fn new(descriptor_layouts: Vec<VkDescriptorSetLayout>,
+               descriptor_sizes: Vec<VkDescriptorPoolSize>,
+                vulkan: &Vulkan) -> Self {
+        let descriptor_pool = vulkan.create_descriptor_pool(&descriptor_sizes, descriptor_layouts.len() as u32, false);
+        let descriptor_sets = vulkan.allocate_descriptor_sets(descriptor_pool, &descriptor_layouts);
+        Self {
+            descriptor_layouts,
+            descriptor_sizes,
+            vulkan: vulkan.clone(),
+
+            descriptor_sets,
+            descriptor_pool
+        }
+    }
+}
+
+impl Drop for PooledDescriptors {
+    fn drop(&mut self) {
+        self.vulkan.free_descriptor_sets(self.descriptor_pool, &self.descriptor_sets);
+        self.descriptor_pool.destroy(&self.vulkan);
+        self.descriptor_layouts.iter().for_each(|v| {
+            v.destroy(&self.vulkan);
+        })
     }
 }

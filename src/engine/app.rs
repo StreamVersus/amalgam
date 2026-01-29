@@ -37,7 +37,7 @@ impl ApplicationHandler for App {
         self.swapchain_info
             .set_width(self.settings.width)
             .set_height(self.settings.height)
-            .set_format(self.settings.render_format.clone())
+            .set_format(self.settings.render_format)
             .set_surface(surface);
         self.vulkan.create_swapchain(&mut self.swapchain_info);
 
@@ -75,8 +75,8 @@ impl ApplicationHandler for App {
                 let window = self.window.as_ref().unwrap();
                 if focused {
                     window.set_cursor_visible(false);
-                    window.set_cursor_grab(CursorGrabMode::Confined)
-                        .unwrap_or_else(|_| window.set_cursor_grab(CursorGrabMode::Locked).unwrap());
+                    window.set_cursor_grab(CursorGrabMode::Locked)
+                        .unwrap_or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined).unwrap());
                 } else {
                     window.set_cursor_visible(true);
                     window.set_cursor_grab(CursorGrabMode::None).unwrap();
@@ -94,10 +94,8 @@ impl ApplicationHandler for App {
                             if self.pressed_keys.insert(key_code) {
                                 (self.settings.callbacks.key_pressed)(&mut self.render_loop, key_code);
                             }
-                        } else {
-                            if self.pressed_keys.remove(&key_code) {
-                                (self.settings.callbacks.key_released)(&mut self.render_loop, key_code);
-                            }
+                        } else if self.pressed_keys.remove(&key_code)  {
+                            (self.settings.callbacks.key_released)(&mut self.render_loop, key_code);
                         }
                     }
                     PhysicalKey::Unidentified(key) => eprintln!("Unidentified key {:?}", key),
@@ -115,7 +113,7 @@ impl ApplicationHandler for App {
                 }
                 
                 let sensitivity = self.settings.sensitivity;
-                let scaled_flipped_delta = (x_delta * sensitivity.0 * 0.01, -y_delta * sensitivity.1 * 0.01);
+                let scaled_flipped_delta = (x_delta * sensitivity.0, -y_delta * sensitivity.1);
                 (self.settings.callbacks.handle_mouse)(&mut self.render_loop, scaled_flipped_delta);
             }
             DeviceEvent::Key(input) => {
@@ -129,7 +127,7 @@ impl ApplicationHandler for App {
                     }
                     #[allow(unused_variables)]
                     PhysicalKey::Unidentified(key) => {
-                        #[cfg(debug_assertions)] eprintln!("key {:?} unidentified", key);
+                        #[cfg(debug_assertions)] eprintln!("key {key:?} unidentified");
                     }
                 }
             }

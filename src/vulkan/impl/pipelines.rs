@@ -239,7 +239,9 @@ impl Vulkan {
     }
 
     fn destroy_pipeline_layout(&self, pipeline_layout: VkPipelineLayout) {
-        unsafe { vkDestroyPipelineLayout(self.get_loaded_device().logical_device, pipeline_layout, null_mut()) }
+        if let Ok(loaded_device) = self.safe_get_loaded_device() {
+            unsafe { vkDestroyPipelineLayout(loaded_device.logical_device, pipeline_layout, null_mut()) }
+        }
     }
 }
 
@@ -288,7 +290,7 @@ impl From<ViewportInfo> for PipelineViewportStateCreateInfo {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct GraphicsPipelineCreateInfo {
     pub flags: VkPipelineCreateFlags,
     pub stages: Vec<PipelineShaderStageCreateInfo>,

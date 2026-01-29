@@ -1,6 +1,6 @@
 use crate::engine::vbo::VBO;
 use crate::vulkan::func::{Destructible, Vulkan};
-use crate::vulkan::gltf::gltf_struct::{Attributes, Gltf};
+use crate::vulkan::gltf::gltf_struct::{Attributes, Gltf, Node};
 use crate::vulkan::r#impl::memory::AllocationTask;
 use crate::vulkan::r#impl::memory::MemoryInfo;
 use crate::vulkan::r#impl::sampler::SamplerInfo;
@@ -18,9 +18,9 @@ pub enum ImageFormat {
     Unknown,
 }
 
-impl Into<VkFormat> for ImageFormat {
-    fn into(self) -> VkFormat {
-        match self {
+impl From<ImageFormat> for VkFormat {
+    fn from(value: ImageFormat) -> Self {
+        match value {
             ImageFormat::Jpeg => VkFormat::R8G8B8_UNORM,
             _ => VkFormat::R8G8B8A8_UNORM,
         }
@@ -56,18 +56,19 @@ impl TryFrom<u32> for ChunkType {
         } else if value == ChunkType::BIN as u32 {
             Ok(ChunkType::BIN)
         } else {
-            panic!("Unknown chunk type {}", value)
+            panic!("Unknown chunk type {value}")
         }
     }
 }
 
 #[allow(dead_code)]
 #[derive(Debug)]
+#[repr(C)]
 pub struct IndirectParameters {
     pub index_count: u32,
     pub instance_count: u32,
     pub first_index: u32,
-    pub vertex_offset: u32,
+    pub vertex_offset: i32,
     pub first_instance: u32,
 }
 
@@ -76,7 +77,7 @@ pub fn resolve_size(gltf: &Gltf, accessor_id: u32) -> u32 {
 }
 
 pub fn resolve_offset(gltf: &Gltf, accessor_id: u32) -> u32 {
-    gltf.bufferViews[gltf.accessors[accessor_id as usize].bufferView as usize].byteOffset
+    gltf.bufferViews[gltf.accessors[accessor_id as usize].bufferView as usize].byteOffset.unwrap_or(0)
 }
 
 pub fn resolve_amount(gltf: &Gltf, accessor_id: u32) -> u32 {
@@ -91,6 +92,22 @@ pub fn resolve_vertices(gltf: &Gltf, attr: Attributes) -> u32 {
         position_amount
     } else {
         panic!("Corrupted json");
+    }
+}
+
+pub fn resolve_mesh(gltf: &Gltf, node: &Node) -> Vec<u32> {
+    match node.mesh {
+        Some(mesh_id) => vec![mesh_id],
+        None => {
+            match node.children.as_ref() {
+                Some(childrens) => {
+                    childrens.iter().map(|&children| {
+                        resolve_mesh(gltf, &gltf.nodes[children as usize])
+                    }).flatten().collect()
+                }
+                _ => panic!("Unknown format")
+            }
+        }
     }
 }
 
@@ -200,6 +217,12 @@ impl Destructible for StagingBuffer {
     fn destroy(&self, vulkan: &Vulkan) {
         self.buffer.destroy(vulkan);
         self.info.memory_object.destroy(vulkan);
+    }
+}
+
+impl Default for StagingBuffer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

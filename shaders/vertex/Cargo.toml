@@ -1,7 +1,10 @@
 [package]
 name = "vertex"
-version = "0.1.0"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+authors.workspace = true
 
 [dependencies]
 spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu" }
+common = { workspace = true }

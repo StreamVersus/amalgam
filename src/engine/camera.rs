@@ -4,7 +4,8 @@ use ultraviolet::{Mat3, Mat4, Rotor3, Vec3, Vec4};
 #[derive(Debug, Clone, Copy)]
 pub struct Camera {
     pub position: Vec3,
-    pub rotation: Rotor3,
+    pub pitch: f32,
+    pub yaw: f32,
     pub fov: f32,
     pub aspect_ratio: f32,
     pub near_plane: f32,
@@ -20,10 +21,11 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new(position: Vec3, rotation: Rotor3, aspect_ratio: f32, speed_cap: f32) -> Camera {
+    pub fn new(position: Vec3, pitch: f32, yaw: f32, aspect_ratio: f32, speed_cap: f32) -> Camera {
         Camera {
             position,
-            rotation,
+            pitch,
+            yaw,
             fov: 60.0,
             aspect_ratio,
             near_plane: 0.1,
@@ -45,8 +47,10 @@ impl Camera {
         self.position += translation;
     }
 
-    pub fn rotate(&mut self, yaw: Rotor3, pitch: Rotor3) {
-        self.rotation = self.rotation * yaw * pitch;
+    pub fn rotate(&mut self, delta_yaw: f32, delta_pitch: f32) {
+        self.yaw += delta_yaw;
+        self.pitch += delta_pitch;
+
         self.rot_matrix_dirty = true;
         self.inv_rot_matrix_dirty = true;
     }
@@ -74,6 +78,10 @@ impl Camera {
         true
     }
 
+    pub fn get_rotor(&self) -> Rotor3 {
+        Rotor3::from_euler_angles(0.0, self.pitch.to_radians(), self.yaw.to_radians())
+    }
+
     pub fn forward_direction(&mut self) -> Vec3 {
         self.get_rotation_matrix() * -Vec3::unit_z()
     }
@@ -88,7 +96,7 @@ impl Camera {
 
     pub fn get_rotation_matrix(&mut self) -> Mat3 {
         if self.rot_matrix_dirty {
-            self.cached_rot_matrix = self.rotation.into_matrix();
+            self.cached_rot_matrix = self.get_rotor().into_matrix();
             self.rot_matrix_dirty = false;
         }
 
@@ -113,7 +121,7 @@ impl Camera {
 
     pub fn view_matrix(&mut self) -> Mat4 {
         if self.inv_rot_matrix_dirty {
-            let inv_rotor = self.rotation.reversed();
+            let inv_rotor = self.get_rotor().reversed();
             self.cached_inv_rot_matrix = inv_rotor.into_matrix();
             self.inv_rot_matrix_dirty = false;
         }
@@ -150,6 +158,6 @@ impl Camera {
 
 impl Default for Camera {
     fn default() -> Camera {
-        Camera::new(Vec3::zero(), Rotor3::identity(), 16f32 / 9f32, 1.0)
+        Camera::new(Vec3::zero(), 0.0, 0.0, 16f32 / 9f32, 1.0)
     }
 }

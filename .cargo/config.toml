@@ -11,4 +11,15 @@ strip = true
 rustflags = [
     "-C", "target-feature=+avx,+sse,+fma",
 ]
-rustc-wrapper = "sccache"
+
+[target.'cfg(target_os = "linux")']
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.x86_64-pc-windows-msvc]
+linker = "lld"
+rustflags = [
+    "-Lnative=/home/stream/.xwin/crt/lib/x86_64",
+    "-Lnative=/home/stream/.xwin/sdk/lib/um/x86_64",
+    "-Lnative=/home/stream/.xwin/sdk/lib/ucrt/x86_64",
+]
+

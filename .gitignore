@@ -5,4 +5,4 @@ cache.storage
 src/cache.storage
 shaders/target
 shaders/vertex/target
-shaders/fragment/target
+shaders/src/fragment/target

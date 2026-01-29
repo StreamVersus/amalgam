@@ -7,6 +7,7 @@ pub mod camera;
 pub mod vbo;
 pub mod shapes;
 pub mod fps;
+pub mod utils;
 
 pub use app::*;
 pub use delta::*;

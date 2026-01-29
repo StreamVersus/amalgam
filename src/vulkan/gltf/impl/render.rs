@@ -1,13 +1,18 @@
 use crate::vulkan::func::{Destructible, Vulkan};
-use crate::vulkan::gltf::scene::Scene;
+use crate::vulkan::gltf::scene::{MaterialID, Scene};
 use crate::vulkan::gltf::utils::{IndirectParameters, StagingBuffer};
 use crate::vulkan::r#impl::command_buffer::RecordingInfo;
 use crate::vulkan::r#impl::image::ImageTransition;
+use ultraviolet::Mat4;
 use vulkan_raw::{vkCmdDrawIndexedIndirect, VkAccessFlags, VkBufferCopy, VkBufferImageCopy, VkCommandBuffer, VkCommandBufferLevel, VkCommandBufferUsageFlags, VkCommandPoolCreateFlags, VkDeviceSize, VkFence, VkImageAspectFlags, VkImageLayout, VkImageSubresourceLayers, VkIndexType, VkPipelineBindPoint, VkPipelineLayout, VkPipelineStageFlags, VK_QUEUE_FAMILY_IGNORED};
 
 impl Scene {
     pub fn prepare(&mut self, vulkan: &Vulkan, staging: &mut StagingBuffer) {
-        let mut max_staging_size = self.idx_size + self.parameters_size;
+        let mut max_staging_size = (self.idx.size() + self.parameters.size()) as u64;
+
+        // Add SSBO sizes
+        max_staging_size += (self.model_matrices.len() * size_of::<Mat4>()) as u64;
+        max_staging_size += (self.material_ranges.len() * size_of::<MaterialID>()) as u64;
         for image in &self.texture_images {
             max_staging_size += image.size as u64;
         }
@@ -18,24 +23,33 @@ impl Scene {
 
         let command_pool = vulkan.create_command_pool(vulkan.get_loaded_device().queue_info[0].family_index, VkCommandPoolCreateFlags::empty());
         let one_time_command_buffer = vulkan.alloc_command_buffers(command_pool, VkCommandBufferLevel::PRIMARY, 1)[0];
+
         // prepare staging buffer
         let mut image_offsets: Vec<VkDeviceSize> = Vec::with_capacity(self.texture_images.len());
-        let mut current_offset = 0u64;
+        let mut current_offset = 0usize;
 
         unsafe {
             // Copy indices
             Vulkan::copy_info(staging_ptr, self.indices.as_ptr(), self.indices.len());
-            current_offset += self.idx_size;
+            current_offset += self.indices.len() * size_of::<u16>();
 
             // Copy parameters
-            Vulkan::copy_info(staging_ptr.add(current_offset as usize), self.parameters.as_ptr(), self.parameters.len());
-            current_offset += self.parameters_size;
+            Vulkan::copy_info(staging_ptr.add(current_offset), self.parameters.as_ptr(), self.parameters.len());
+            current_offset += self.parameters.size();
+
+            // Copy model matrices
+            Vulkan::copy_info(staging_ptr.add(current_offset), self.model_matrices.as_ptr(), self.model_matrices.len());
+            current_offset += self.model_matrices.len() * size_of::<Mat4>();
+
+            // Copy material ranges
+            Vulkan::copy_info(staging_ptr.add(current_offset), self.material_ranges.as_ptr(), self.material_ranges.len());
+            current_offset += self.material_ranges.len() * size_of::<MaterialID>();
 
             // Copy images
             for image in &self.texture_images {
-                Vulkan::copy_info(staging_ptr.add(current_offset as usize), image.data.as_ptr(), image.size);
-                image_offsets.push(current_offset);
-                current_offset += image.size as u64;
+                Vulkan::copy_info(staging_ptr.add(current_offset), image.data.as_ptr(), image.size);
+                image_offsets.push(current_offset as VkDeviceSize);
+                current_offset += image.size;
             }
         }
         vulkan.flush_memory(&[*staging_info]);
@@ -51,18 +65,40 @@ impl Scene {
 
         self.vbo.sync_buffer(vulkan, one_time_command_buffer);
 
+        let mut offset: VkDeviceSize = 0;
+        // Copy indices
         vulkan.buffer_to_buffer(vec![VkBufferCopy {
-            srcOffset: 0,
+            srcOffset: offset,
             dstOffset: 0,
-            size: (self.indices.len() * size_of::<u16>()) as VkDeviceSize,
+            size: self.idx.size() as VkDeviceSize,
         }], one_time_command_buffer, staging_buffer, *self.idx.get());
+        offset += self.idx.size() as u64;
 
+        // Copy parameters
         vulkan.buffer_to_buffer(vec![VkBufferCopy {
-            srcOffset: self.idx_size,
+            srcOffset: offset,
             dstOffset: 0,
-            size: self.parameters_size,
+            size: self.parameters.size() as VkDeviceSize,
         }], one_time_command_buffer, staging_buffer, *self.indirect_buffer.get());
+        offset += self.parameters.size() as u64;
 
+        // Copy model ssbo
+        vulkan.buffer_to_buffer(vec![VkBufferCopy {
+            srcOffset: offset,
+            dstOffset: 0,
+            size: (self.model_matrices.len() * size_of::<Mat4>()) as VkDeviceSize,
+        }], one_time_command_buffer, staging_buffer, *self.model_ssbo.get());
+        offset += (self.model_matrices.len() * size_of::<Mat4>()) as VkDeviceSize;
+
+        // Copy material ssbo
+        vulkan.buffer_to_buffer(vec![VkBufferCopy {
+            srcOffset: offset,
+            dstOffset: 0,
+            size: (self.material_ranges.len() * size_of::<MaterialID>()) as VkDeviceSize,
+        }], one_time_command_buffer, staging_buffer, *self.material_ssbo.get());
+        //offset += (self.material_ranges.len() * size_of::<MaterialID>()) as VkDeviceSize;
+
+        // Transition and copy images
         let transitions = self.texture_images.iter().map(|image| {
             ImageTransition {
                 image: *image.image.get(),
@@ -125,7 +161,7 @@ impl Scene {
         self.vbo.bind(vulkan, command_buffer);
 
         vulkan.bind_index_buffer(command_buffer, *self.idx.get(), 0, VkIndexType::UINT16);
-        vulkan.bind_descriptor_sets(command_buffer, VkPipelineBindPoint::GRAPHICS, pipeline_layout, 0, &self.descriptor_sets, &[]);
+        vulkan.bind_descriptor_sets(command_buffer, VkPipelineBindPoint::GRAPHICS, pipeline_layout, 0, &self.descriptors.descriptor_sets, &[]);
 
         unsafe { vkCmdDrawIndexedIndirect(command_buffer, *self.indirect_buffer.get(), 0, self.parameters.len() as u32, size_of::<IndirectParameters>() as u32) };
     }

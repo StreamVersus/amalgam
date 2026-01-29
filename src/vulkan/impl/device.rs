@@ -80,7 +80,7 @@ impl Vulkan {
         let devices = self.get_devices();
         let desired_extensions: HashSet<String> = device_extensions()
             .into_iter()
-            .map(|x| null_terminated_str(x))
+            .map(null_terminated_str)
             .collect();
         for device in devices {
             let extension_data = self.get_physical_device_extensions(device);
@@ -120,7 +120,7 @@ impl Vulkan {
 
             #[allow(unused_mut)]
             let mut layers: Vec<*const c_char> = vec![];
-            layers.push("VK_AMD_anti_lag\0".as_ptr() as *const c_char);
+            layers.push(c"VK_AMD_anti_lag".as_ptr() as *const c_char);
 
             let vulkan_12_features = VkPhysicalDeviceVulkan12Features {
                 pNext: null_mut(),

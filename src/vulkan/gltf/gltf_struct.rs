@@ -29,10 +29,12 @@ pub struct Scene {
 
 #[derive(Debug, Deserialize)]
 pub struct Node {
-    pub mesh: u32,
+    pub mesh: Option<u32>,
+    pub children: Option<Vec<u32>>,
     pub name: String,
     pub translation: Option<[f32; 3]>,
     pub rotation: Option<[f32; 4]>,
+    pub scale: Option<[f32; 3]>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -85,7 +87,7 @@ pub struct Texture {
 pub struct Image {
     pub bufferView: u16,
     pub mimeType: String,
-    pub name: String,
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -102,7 +104,7 @@ pub struct Accessor {
 pub struct BufferView {
     pub buffer: u32,
     pub byteLength: u32,
-    pub byteOffset: u32,
+    pub byteOffset: Option<u32>,
     pub target: Option<u32>,
 }
 

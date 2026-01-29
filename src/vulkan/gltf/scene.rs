@@ -1,37 +1,41 @@
+use crate::engine::utils::obj_n_size::NSize;
 use crate::engine::vbo::VBO;
 use crate::vulkan::gltf::ubo::UniformBuffer;
 use crate::vulkan::gltf::utils::{ChunkType, IndirectParameters};
 use crate::vulkan::r#impl::memory::VkDestroy;
-use ultraviolet::{Rotor3, Vec3};
-use vulkan_raw::{VkBuffer, VkDescriptorSet, VkDescriptorSetLayout, VkDeviceMemory, VkExtent3D, VkImage, VkImageView, VkSampler};
+use crate::vulkan::r#impl::descriptors::PooledDescriptors;
+use ultraviolet::{Mat4, Rotor3, Vec3};
+use vulkan_raw::{VkBuffer, VkDeviceMemory, VkExtent3D, VkImage, VkImageView, VkSampler};
 
+type SizedBuffer = NSize<VkDestroy<VkBuffer>>;
 #[derive(Default)]
 pub struct Scene {
     pub ubo: UniformBuffer,
 
     pub vbo: VBO,
-    pub idx: VkDestroy<VkBuffer>,
-    pub indirect_buffer: VkDestroy<VkBuffer>,
+    pub idx: SizedBuffer,
+    pub indirect_buffer: SizedBuffer,
+    pub material_ssbo: SizedBuffer,
+    pub model_ssbo: SizedBuffer,
 
-    pub idx_size: u64,
-    pub parameters_size: u64,
-
-    pub parameter_count: u32,
-    pub(crate) parameters: Vec<IndirectParameters>,
-    pub descriptor_sets: Vec<VkDescriptorSet>,
-    pub descriptor_layouts: Vec<VkDescriptorSetLayout>,
+    pub(crate) parameters: NSize<Vec<IndirectParameters>>,
+    pub descriptors: PooledDescriptors,
 
     pub indices: Vec<u16>,
 
     pub(crate) texture_images: Vec<Image>,
+    pub model_matrices: Vec<Mat4>,
+    pub material_ranges: Vec<MaterialID>,
+
     pub(crate) _samplers: Vec<VkDestroy<VkSampler>>,
     pub(crate) _memory: Vec<VkDestroy<VkDeviceMemory>>,
 }
 
-pub struct Node<'a> {
-    pub mesh: &'a Mesh,
+pub struct Node {
+    pub meshes: Vec<Mesh>,
     pub pos: Vec3,
     pub rot: Rotor3,
+    pub scale: Vec3,
 }
 #[derive(Clone)]
 pub struct Mesh {
@@ -39,10 +43,18 @@ pub struct Mesh {
     pub primitives: Vec<Primitive>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Primitive {
     pub indices: u32,
     pub vertices: u32,
+    pub material: MaterialID,
+}
+
+#[derive(Copy, Clone, Debug)]
+#[repr(C)]
+pub struct MaterialID {
+    pub source_id: u32,
+    pub sampler_id: u32,
 }
 pub const SIZE_TEXCOORDS: usize = size_of::<[f32; 2]>();
 #[derive(Debug)]

@@ -1,5 +1,4 @@
-use std::arch::x86_64::{_mm256_fmadd_ps, _mm_rcp_ps, _mm_set_ps, _mm_storeu_ps};
-use std::mem::transmute;
+use std::arch::x86_64::{_mm_rcp_ps, _mm_set_ps, _mm_storeu_ps};
 use ultraviolet::{f32x8, Vec3, Vec3x8};
 #[inline(always)]
 fn vfmadd(a: f32x8, b: f32x8, c: f32x8) -> f32x8 {
@@ -69,6 +68,7 @@ unsafe fn fast_vec3_recip_sse(v: Vec3) -> Vec3 {
 }
 
 #[inline]
+#[allow(unused)]
 fn fast_vec3_recip_fallback(v: Vec3) -> Vec3 {
     Vec3::one() / v
 }

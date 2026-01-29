@@ -68,7 +68,7 @@ fn validate_caches(vulkan: &Vulkan) -> Cache {
             let decoded_bytes = decompression_algo(&raw_bytes);
             let cache_data = Cache::decode(decoded_bytes.as_slice()).expect("Unable to decode cache");
 
-            if cache_data.device == None || cache_data.cache_blob.len() == 0 || cache_data.version != VERSION {
+            if cache_data.device.is_none() || cache_data.cache_blob.is_empty() || cache_data.version != VERSION {
                 return devalidate(vulkan);
             }
 
@@ -100,11 +100,7 @@ pub fn decompression_algo(bytes: &[u8]) -> Vec<u8> {
 }
 
 pub fn create_new_cache(vulkan: &Vulkan) -> Cache {
-    let mut cache_data = Cache::default();
-    cache_data.version = VERSION;
-    cache_data.device = Some(build_device_info(vulkan.get_loaded_device()));
-
-    cache_data
+    Cache { version: VERSION, device: Some(build_device_info(vulkan.get_loaded_device())), ..Default::default() }
 }
 
 struct CachePool {

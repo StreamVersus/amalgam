@@ -1,7 +1,8 @@
 use crate::vulkan::r#impl::device::LoadedDevice;
 use std::cmp::min;
+use std::io::Error;
 use vulkan_raw::{load_device_functions, load_instance_functions, ApiVersion, VkBool32, VkInstance, VkVersion};
-#[derive(Default, Debug,  Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Vulkan {
     pub instance: Option<VkInstance>,
     pub loaded_device: Option<LoadedDevice>,
@@ -28,6 +29,10 @@ impl Vulkan {
     
     pub fn get_loaded_device(&self) -> &LoadedDevice {
         self.loaded_device.as_ref().expect("Device not loaded")
+    }
+
+    pub fn safe_get_loaded_device(&self) -> Result<&LoadedDevice, Error> {
+        self.loaded_device.as_ref().ok_or(Error::other("Device not loaded".to_string()))
     }
 
     pub fn is_version_supported(&self, api_version: VkVersion) -> bool {
@@ -58,9 +63,5 @@ pub fn bool_to_vkbool(boolean: bool) -> VkBool32 {
 
 #[inline(always)]
 pub fn vkbool_to_bool(boolean: VkBool32 ) -> bool {
-    if boolean == VkBool32::TRUE {
-        true
-    } else {
-        false
-    }
+    boolean == VkBool32::TRUE
 }

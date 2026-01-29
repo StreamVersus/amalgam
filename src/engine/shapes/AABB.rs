@@ -67,7 +67,7 @@ impl AABB for RenderableAABox {
 }
 
 impl Renderable for RenderableAABox {
-
+    #[allow(unused_variables)]
     fn allocate(&mut self, vulkan: &Vulkan, host: &mut AllocationTask, device: &mut AllocationTask) {
         let index = vulkan.create_buffer(size_of::<u16>() as u64 * 36, BufferUsage::preset_index()).unwrap();
 

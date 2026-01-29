@@ -2,7 +2,7 @@ use crate::engine::shapes::declarations::intersection::{IDeclaration, Length, Po
 #[derive(Default)]
 pub struct FastDeclaration {
 }
-
+#[allow(unused_variables)]
 impl IDeclaration for FastDeclaration {
     fn length(&self) -> bool {
         false
