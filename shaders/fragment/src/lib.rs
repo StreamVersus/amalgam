@@ -1,6 +1,6 @@
 #![no_std]
 #![allow(unexpected_cfgs)]
-use spirv_std::glam::{vec4, Vec2, Vec4};
+use spirv_std::glam::{Vec2, Vec4};
 use spirv_std::image::Image2d;
 use spirv_std::{spirv, Sampler};
 

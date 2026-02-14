@@ -11,7 +11,7 @@ use crate::vulkan::r#impl::command_buffer::{RecordingInfo, WaitSemaphoreInfo};
 use crate::vulkan::r#impl::memory::VkDestroy;
 use crate::vulkan::r#impl::swapchain::SwapchainInfo;
 use ultraviolet::Vec3;
-use vulkan_raw::{vkCmdSetScissor, vkCmdSetViewport, vkQueuePresentKHR, VkClearColorValue, VkClearDepthStencilValue, VkClearValue, VkCommandBufferLevel, VkCommandBufferUsageFlags, VkCommandPool, VkCommandPoolCreateFlags, VkDescriptorSet, VkExtent2D, VkExtent3D, VkFence, VkPipeline, VkPipelineBindPoint, VkPipelineLayout, VkPipelineStageFlags, VkPresentInfoKHR, VkQueue, VkRect2D, VkRenderPass, VkSampleCountFlags, VkSubpassContents, VkViewport};
+use vulkan_raw::{vkCmdSetScissor, vkCmdSetViewport, vkQueuePresentKHR, VkClearColorValue, VkClearDepthStencilValue, VkClearValue, VkCommandBufferLevel, VkCommandBufferUsageFlags, VkCommandPool, VkCommandPoolCreateFlags, VkDescriptorSet, VkExtent2D, VkExtent3D, VkFence, VkPipeline, VkPipelineBindPoint, VkPipelineStageFlags, VkPresentInfoKHR, VkQueue, VkRect2D, VkRenderPass, VkSampleCountFlags, VkSubpassContents, VkViewport};
 use winit::keyboard::KeyCode;
 
 const MAX_FRAMES_IN_FLIGHT: usize = 3;

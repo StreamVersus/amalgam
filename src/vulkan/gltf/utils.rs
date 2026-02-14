@@ -1,4 +1,4 @@
-use crate::engine::vbo::VBO;
+use crate::engine::buffers::vbo::VBO;
 use crate::vulkan::func::{Destructible, Vulkan};
 use crate::vulkan::gltf::gltf_struct::{Attributes, Gltf, Node};
 use crate::vulkan::r#impl::memory::AllocationTask;

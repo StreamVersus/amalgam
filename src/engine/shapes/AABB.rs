@@ -1,5 +1,5 @@
 use crate::engine::shapes::renderable::Renderable;
-use crate::engine::vbo::VBO;
+use crate::engine::buffers::vbo::VBO;
 use crate::vulkan::func::Vulkan;
 use crate::vulkan::gltf::scene::Vertex;
 use crate::vulkan::gltf::utils::StagingBuffer;
@@ -23,7 +23,6 @@ pub struct SimpleAABox {
 
 impl AABB for SimpleAABox {
     #[inline(always)]
-
     fn box_min(&self) -> &Vec3 {
         &self.box_min
     }
@@ -144,13 +143,11 @@ pub struct AABB4(pub Vec3x8);
 
 impl AABB4 {
     pub fn new<A: AABB>(a: &A, b: &A, c: &A, d: &A) -> Self {
-        Self {
-            0: Vec3x8 {
+        Self(Vec3x8 {
                 x: f32x8::new([a.box_min().x, a.box_min().x, b.box_min().x, b.box_min().x, c.box_min().x, c.box_min().x, d.box_min().x, d.box_min().x]),
                 y: f32x8::new([a.box_min().y, a.box_min().y, b.box_min().y, b.box_min().y, c.box_min().y, c.box_min().y, d.box_min().y, d.box_min().y]),
                 z: f32x8::new([a.box_min().z, a.box_min().z, b.box_min().z, b.box_min().z, c.box_min().z, c.box_min().z, d.box_min().z, d.box_min().z]),
-            }
-        }
+            })
     }
 
     pub fn from_arr<A: AABB>(arr: [&A; 4]) -> Self {

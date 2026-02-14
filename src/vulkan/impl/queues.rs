@@ -69,7 +69,7 @@ impl Vulkan {
                 priorities: vec![1.0],
             });
         }
-        if ret_vec.len() == 0 {
+        if ret_vec.is_empty() {
             ret_vec.push(QueueInfo {
                 family_index: desired_graphical_families[0],
                 priorities: vec![1.0],

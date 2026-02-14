@@ -1,4 +1,3 @@
-use std::ops::Deref;
 use crate::vulkan::func::{bool_to_vkbool, Destructible, Vulkan};
 use crate::vulkan::r#impl::pipelines::{GraphicsPipelineCreateInfo, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineTessellationStateCreateInfo};
 use vulkan_raw::{VkBlendFactor, VkBlendOp, VkBool32, VkColorComponentFlags, VkCompareOp, VkCullModeFlags, VkDescriptorSetLayout, VkDynamicState, VkExtent2D, VkFrontFace, VkLogicOp, VkPipelineLayout, VkPipelineShaderStageCreateFlags, VkPolygonMode, VkPrimitiveTopology, VkRenderPass, VkSampleCountFlagBits, VkSampleCountFlags, VkShaderModule, VkShaderStageFlags, VkStencilOp, VkStencilOpState};

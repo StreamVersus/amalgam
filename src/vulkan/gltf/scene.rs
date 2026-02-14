@@ -1,6 +1,6 @@
 use crate::engine::utils::obj_n_size::NSize;
-use crate::engine::vbo::VBO;
-use crate::vulkan::gltf::ubo::UniformBuffer;
+use crate::engine::buffers::vbo::VBO;
+use crate::engine::buffers::ubo::UniformBuffer;
 use crate::vulkan::gltf::utils::{ChunkType, IndirectParameters};
 use crate::vulkan::r#impl::memory::VkDestroy;
 use crate::vulkan::r#impl::descriptors::PooledDescriptors;

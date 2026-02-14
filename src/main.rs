@@ -12,7 +12,7 @@ fn main() {
     create_window(Settings {
         width: 1200,
         height: 900,
-        vsync: true,
+        vsync: false,
         msaa: VkSampleCountFlags::empty(),
         callbacks: Callbacks {
             render: RenderLoop::render_loop,

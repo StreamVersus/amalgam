@@ -6,7 +6,7 @@ version = 4
 name = "ab_glyph"
 version = "0.2.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e0f4f6fbdc5ee39f2ede9f5f3ec79477271a6d6a2baff22310d51736bda6cea"
+checksum = 
 dependencies = [
  "ab_glyph_rasterizer",
  "owned_ttf_parser",
@@ -590,6 +590,7 @@ dependencies = [
 name = "fragment"
 version = "0.1.1"
 dependencies = [
+ "bytemuck",
  "common",
  "spirv-std",
 ]

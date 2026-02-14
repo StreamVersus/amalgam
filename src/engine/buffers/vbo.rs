@@ -18,7 +18,7 @@ pub struct VBO {
 
     dirty: bool,
     offset: u64,
-    pub(crate) size: u64,
+    pub size: u64,
 }
 
 impl VBO {

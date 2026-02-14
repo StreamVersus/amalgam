@@ -1,9 +1,8 @@
 #![no_std]
 #![allow(unexpected_cfgs)]
 #![allow(unused_imports)]
-
 mod material;
-use material::*;
+pub use material::*;
 
 use cfg_if::cfg_if;
 

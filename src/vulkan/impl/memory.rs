@@ -8,7 +8,6 @@ use std::os::raw::c_void;
 use std::ptr::null_mut;
 use vulkan_raw::{vkAllocateMemory, vkFlushMappedMemoryRanges, vkFreeMemory, vkMapMemory, vkUnmapMemory, VkBindBufferMemoryInfo, VkBindImageMemoryInfo, VkBuffer, VkDeviceMemory, VkImage, VkMappedMemoryRange, VkMemoryAllocateInfo, VkMemoryDedicatedAllocateInfo, VkMemoryMapFlagBits, VkMemoryPropertyFlags, VkMemoryRequirements, VkResult};
 
-
 impl Vulkan {
     pub fn calculate_total_size(memory_requirements: &Vec<VkMemoryRequirements>) -> u64 {
         let mut total_size = 0u64;
@@ -85,7 +84,7 @@ impl Vulkan {
         result == VkResult::SUCCESS
     }
 
-    /// use with caution, double check for alignment
+    /// Safety: use with caution, double check for alignment
     #[allow(deprecated)]
     pub fn copy_info<T>(dst_pointer: *mut c_void, src_pointer: *const T, count: usize) {
         unsafe { std::intrinsics::copy_nonoverlapping(src_pointer as *const u8, dst_pointer as *mut u8, size_of::<T>() * count) };
@@ -339,7 +338,7 @@ impl AllocationInfo {
     pub fn get_all_info(&self) -> Vec<MemoryInfo> {
         let mut images: Vec<MemoryInfo> = self.image_info.values().cloned().collect();
         let buffers: Vec<MemoryInfo> = self.buffer_info.values().cloned().collect();
-        images.extend(buffers.into_iter());
+        images.extend(buffers);
         
         images
     }
@@ -359,7 +358,7 @@ impl Hash for dyn Allocatable {
         }
     }
 }
-
+//TODO: rewrite to check addres of allocatable
 impl PartialEq for dyn Allocatable {
     fn eq(&self, other: &Self) -> bool {
         self == other
