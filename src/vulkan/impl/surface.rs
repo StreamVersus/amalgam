@@ -1,8 +1,8 @@
 use crate::vulkan::func::Vulkan;
-use std::ptr::null_mut;
-use vulkan_raw::{vkCreateAndroidSurfaceKHR, vkCreateWaylandSurfaceKHR, vkCreateWin32SurfaceKHR, vkCreateXcbSurfaceKHR, vkCreateXlibSurfaceKHR, vkDestroySurfaceKHR, vkGetPhysicalDeviceSurfaceCapabilitiesKHR, vkGetPhysicalDeviceSurfacePresentModesKHR, VkAndroidSurfaceCreateInfoKHR, VkColorSpaceKHR, VkFormat, VkPhysicalDevice, VkPresentModeKHR, VkSurfaceCapabilitiesKHR, VkSurfaceFormatKHR, VkSurfaceKHR, VkWaylandSurfaceCreateInfoKHR, VkWin32SurfaceCreateInfoKHR, VkXcbSurfaceCreateInfoKHR, VkXlibSurfaceCreateInfoKHR, HINSTANCE, HWND};
 use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle};
 use winit::window::Window;
+use std::ptr::null_mut;
+use vulkan_raw::{vkCreateAndroidSurfaceKHR, vkCreateWaylandSurfaceKHR, vkCreateWin32SurfaceKHR, vkCreateXcbSurfaceKHR, vkCreateXlibSurfaceKHR, vkDestroySurfaceKHR, vkGetPhysicalDeviceSurfaceCapabilitiesKHR, vkGetPhysicalDeviceSurfacePresentModesKHR, VkAndroidSurfaceCreateInfoKHR, VkColorSpaceKHR, VkFormat, VkPhysicalDevice, VkPresentModeKHR, VkSurfaceCapabilitiesKHR, VkSurfaceFormatKHR, VkSurfaceKHR, VkWaylandSurfaceCreateInfoKHR, VkWin32SurfaceCreateInfoKHR, VkXcbSurfaceCreateInfoKHR, VkXlibSurfaceCreateInfoKHR, HINSTANCE, HWND};
 
 impl Vulkan {
     pub fn get_presentation_mode(&self, desired_mode: VkPresentModeKHR, device: VkPhysicalDevice, surface: VkSurfaceKHR) -> VkPresentModeKHR {
@@ -48,7 +48,7 @@ impl Vulkan {
         surface_capabilities
     }
     
-    pub fn connect_vulkan(&self, window: &Window) -> VkSurfaceKHR {
+    pub fn connect_vulkan(&self, window: &Box<dyn Window>) -> VkSurfaceKHR {
         let instance = self.get_instance();
         
         let display_handle = window.display_handle().unwrap().as_raw();
@@ -142,9 +142,22 @@ pub struct SurfaceFormat {
 }
 impl Default for SurfaceFormat {
     fn default() -> Self {
-        SurfaceFormat {
-            format: VkFormat::B8G8R8A8_UNORM,
-            colorSpace: VkColorSpaceKHR::SRGB_NONLINEAR_KHR,
+        if cfg!(target_arch = "x86_64") {
+            SurfaceFormat {
+                format: VkFormat::B8G8R8A8_UNORM,
+                colorSpace: VkColorSpaceKHR::SRGB_NONLINEAR_KHR,
+            }
+        } else if cfg!(target_arch = "aarch64") {
+            SurfaceFormat {
+                format: VkFormat::R8G8B8A8_UNORM,
+                colorSpace: VkColorSpaceKHR::SRGB_NONLINEAR_KHR,
+            }
+        } else {
+            dbg!("Unsupported platform!");
+            SurfaceFormat {
+                format: VkFormat::R8G8B8A8_UNORM,
+                colorSpace: VkColorSpaceKHR::SRGB_NONLINEAR_KHR,
+            }
         }
     }
 }

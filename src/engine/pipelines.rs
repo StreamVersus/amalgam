@@ -1,13 +1,12 @@
 use crate::engine::caches::{build_device_info, Cache};
+use crate::prelude::*;
 use crate::vulkan::func::{Destructible, Vulkan};
-use crate::vulkan::r#impl::pipelines::GraphicsPipelineCreateInfo;
 use prost::Message;
 use std::cmp::max;
 use std::fs;
 use std::fs::File;
 use std::sync::Arc;
 use std::thread::available_parallelism;
-use vulkan_raw::{VkPipeline, VkPipelineCache};
 
 const FILE_PATH: &str = "cache.storage";
 const VERSION: u32 = 0;
@@ -54,7 +53,11 @@ pub fn create_pipelines_multithreaded(use_caches: bool, pipeline_infos: Vec<Grap
         let proto_bytes = cache_data.encode_to_vec();
         let compressed_data = compression_algo(&proto_bytes);
 
-        fs::write(FILE_PATH, compressed_data.as_slice()).expect("Unable to write file");
+        if cfg!(target_arch = "x86_64") {
+            fs::write(FILE_PATH, compressed_data.as_slice()).expect("Unable to write file");
+        } else if cfg!(target_arch = "aarch64") {
+            //fs::write(FILE_PATH, compressed_data.as_slice()).expect("Unable to write file"); TODO add cache writing to internal app dir
+        }
     }
     final_cache.destroy(vulkan);
 

@@ -1,15 +1,13 @@
 use crate::both::RenderLoop;
-use crate::engine::{App, Delta};
+use crate::engine::{App, Delta, WinitHandler};
+use crate::prelude::*;
 use crate::vulkan::func::Vulkan;
-use crate::vulkan::r#impl::memory::{AllocationTask, VkDestroy};
-use crate::vulkan::r#impl::surface::SurfaceFormat;
-use crate::vulkan::r#impl::swapchain::SwapchainInfo;
 use crate::vulkan::utils::ImageUsage;
-use vulkan_raw::{VkCommandBuffer, VkDeviceMemory, VkExtent3D, VkFence, VkFormat, VkFramebuffer, VkImage, VkImageAspectFlags, VkImageType, VkImageView, VkImageViewType, VkRenderPass, VkSampleCountFlags, VkSemaphore};
+use egui::{Context, RawInput};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::keyboard::KeyCode;
 
-pub fn create_window(settings: Settings) {
+pub fn create_window(settings: Settings) -> Result<(), Box<dyn std::error::Error>> {
     let mut vulkan = Vulkan::default();
     vulkan.init();
     let mut event_loop = EventLoop::builder();
@@ -22,28 +20,27 @@ pub fn create_window(settings: Settings) {
 
     #[cfg(target_os = "linux")]
     {
-        use winit::platform::wayland::EventLoopBuilderExtWayland;
-        use winit::platform::x11::EventLoopBuilderExtX11;
-        if crate::vulkan::platform::is_wayland() {
-            event_loop.with_wayland();
-        } else {
-            event_loop.with_x11();
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "wayland")] {
+                use winit::platform::wayland::EventLoopBuilderExtWayland;
+                event_loop.with_wayland();
+            } else if #[cfg(feature = "x11")] {
+                use winit::platform::x11::EventLoopBuilderExtX11;
+                event_loop.with_x11();
+            }
         }
     }
     
-    let event_loop = event_loop.build().unwrap();
+    let event_loop = event_loop.build()?;
     event_loop.set_control_flow(ControlFlow::Poll);
-    let mut app = App {
-        window: None,
+    let app = App {
         delta: Delta::new(settings.target_fps, settings.min_fps, settings.smoothing_factor, settings.vsync),
         settings,
         vulkan,
-        swapchain_info: Default::default(),
-        render_loop: Default::default(),
-        pressed_keys: Default::default(),
-        focused: false,
+        ..Default::default()
     };
-    event_loop.run_app(&mut app).unwrap()
+    event_loop.run_app(app)?;
+    Ok(())
 }
 
 //TODO: populate with another options
@@ -63,7 +60,7 @@ pub struct Settings {
 }
 pub struct Callbacks {
     pub render_init: fn(&mut RenderLoop, &Vulkan, &mut SwapchainInfo, &mut Settings),
-    pub render: fn(&mut RenderLoop, &Vulkan, &mut SwapchainInfo, f64),
+    pub render: fn(&mut RenderLoop, &Vulkan, &mut SwapchainInfo, &mut Context, &mut WinitHandler, FrameInfo),
     pub handle_mouse: fn(&mut RenderLoop, (f64, f64)),
     pub key_pressed: fn(&mut RenderLoop, KeyCode),
     pub key_released: fn(&mut RenderLoop, KeyCode),
@@ -73,7 +70,7 @@ impl Default for Callbacks {
     fn default() -> Self {
         Callbacks {
             render_init: |_a, _b, _c, _d| {}, // no-op implementation
-            render: |_a, _b, _c, _d| {},
+            render: |_a, _b, _c, _d, _f, _e| {},
             handle_mouse: |_a, _b| {},
             key_pressed: |_a, _b| {},
             key_released: |_a, _b| {},
@@ -147,18 +144,18 @@ impl PerImageResource {
     pub fn new(vulkan: &Vulkan, image: VkImage, format: VkFormat, extent: VkExtent3D, sample_rate: VkSampleCountFlags, render_pass: VkRenderPass) -> Self {
         let swapchain_image_view = vulkan.create_image_view(&image, VkImageViewType::IVT_2D, format, VkImageAspectFlags::COLOR_BIT);
         let depth_image = vulkan.create_image(VkFormat::D32_SFLOAT, VkImageType::IT_2D, false, 1, 1, extent, sample_rate, ImageUsage::default().depth_stencil_attachment(true));
-        let mut device_task = AllocationTask::device();
-        device_task.add_allocatable_ref(depth_image);
+        let mut device_storage = BatchedStorage::new();
+        device_storage.add_image(depth_image);
 
         let color_msaa_image = if sample_rate != VkSampleCountFlags::SC_1_BIT {
             let color_msaa_image = vulkan.create_image(format, VkImageType::IT_2D, false, 1, 1, extent, sample_rate, ImageUsage::default().color_attachment(true));
-            device_task.add_allocatable_ref(color_msaa_image);
+            device_storage.add_image(color_msaa_image);
 
             Some(VkDestroy::new(color_msaa_image, vulkan))
         } else {
             None
         };
-        let memory = device_task.allocate_all(vulkan).get_all_memory_objects();
+        let memory = vulkan.allocator.device(device_storage, vulkan).get_all_memory_objects();
         let memory_storage = memory.into_iter().map(|memory| {
             VkDestroy::new(memory, vulkan)
         }).collect();
@@ -224,4 +221,9 @@ impl PerImageResource {
     pub fn render_finished_semaphore(&self) -> VkSemaphore {
         *self.render_finished_semaphore
     }
+}
+
+pub struct FrameInfo {
+    pub delta_time: f64,
+    pub raw_input: RawInput,
 }

@@ -1,12 +1,15 @@
-use crate::vulkan::r#impl::device::LoadedDevice;
+use crate::prelude::LoadedDevice;
 use std::cmp::min;
 use std::io::Error;
 use vulkan_raw::{load_device_functions, load_instance_functions, ApiVersion, VkBool32, VkInstance, VkVersion};
+use crate::prelude::arena_alloc::ArenaAllocator;
+
 #[derive(Default, Debug, Clone)]
 pub struct Vulkan {
     pub instance: Option<VkInstance>,
     pub loaded_device: Option<LoadedDevice>,
     api_version: ApiVersion,
+    pub allocator: ArenaAllocator,
 }
 
 impl Vulkan {

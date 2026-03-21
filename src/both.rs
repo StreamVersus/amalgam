@@ -1,18 +1,16 @@
 use crate::engine::camera::Camera;
 use crate::engine::fps::GpuTimer;
+use crate::engine::gui_renderer::FastRenderer;
 use crate::engine::pipelines::create_pipelines_multithreaded;
 use crate::engine::shapes::AABB::{SimpleAABox, AABB4};
-use crate::engine::{PerFrameResource, PerImageResource, Settings};
-use crate::pipeline_presets::{preset_graphic_pipeline, preset_multisample, resolve_highest_multisampling, PipelineContainer};
+use crate::engine::{FrameInfo, PerFrameResource, PerImageResource, Settings, WinitHandler};
+use crate::prelude::*;
 use crate::vulkan::func::{Destructible, Vulkan};
 use crate::vulkan::gltf::scene::Scene;
 use crate::vulkan::gltf::utils::StagingBuffer;
-use crate::vulkan::r#impl::command_buffer::{RecordingInfo, WaitSemaphoreInfo};
-use crate::vulkan::r#impl::memory::VkDestroy;
-use crate::vulkan::r#impl::swapchain::SwapchainInfo;
-use ultraviolet::Vec3;
-use vulkan_raw::{vkCmdSetScissor, vkCmdSetViewport, vkQueuePresentKHR, VkClearColorValue, VkClearDepthStencilValue, VkClearValue, VkCommandBufferLevel, VkCommandBufferUsageFlags, VkCommandPool, VkCommandPoolCreateFlags, VkDescriptorSet, VkExtent2D, VkExtent3D, VkFence, VkPipeline, VkPipelineBindPoint, VkPipelineStageFlags, VkPresentInfoKHR, VkQueue, VkRect2D, VkRenderPass, VkSampleCountFlags, VkSubpassContents, VkViewport};
+use egui::Context;
 use winit::keyboard::KeyCode;
+use ultraviolet::Vec3;
 
 const MAX_FRAMES_IN_FLIGHT: usize = 3;
 #[derive(Default)]
@@ -27,6 +25,7 @@ pub struct RenderLoop {
     pub graph_pipeline: VkDestroy<VkPipeline>,
     pub render_pass: VkDestroy<VkRenderPass>,
     pub descriptor_set: VkDescriptorSet,
+    fast_renderer: FastRenderer,
 
     pub camera: Camera,
     pub test_box: Vec<AABB4>,
@@ -71,7 +70,7 @@ impl RenderLoop {
         let limits = &vulkan.get_loaded_device().device_info.properties.limits;
         let supported_samples = limits.framebufferColorSampleCounts & limits.framebufferDepthSampleCounts;
         self.samples = resolve_highest_multisampling(supported_samples, settings.msaa);
-        let render_pass = vulkan.preset_renderpass_color_depth(self.samples, self.settings.render_format.format);
+        let render_pass = vulkan.preset_renderpass_color_depth(self.samples, self.settings.render_format.format, VkImageLayout::UNDEFINED, VkImageLayout::PRESENT_SRC_KHR);
         self.render_pass = VkDestroy::new(render_pass, vulkan);
 
         self.recreate_framebuffers(vulkan, swapchain);
@@ -105,39 +104,14 @@ impl RenderLoop {
         self.fps = GpuTimer::new(vulkan.get_loaded_device().logical_device, vulkan.get_loaded_device().device_info.properties.limits.timestampPeriod);
 
         //allocate
-        // let mut host_task = AllocationTask::host_coherent();
-        // let mut device_task = AllocationTask::device();
-        // self.test_box.iter_mut().for_each(|renderable| {
-        //     renderable.allocate(vulkan, &mut host_task, &mut device_task)
-        // });
-        //
-        // host_task.allocate_all(vulkan);
-        // device_task.allocate_all(vulkan);
 
         //prepare
-        // let one_time = vulkan.create_command_pool(vulkan.get_loaded_device().queue_info[0].family_index, VkCommandPoolCreateFlags::RESET_COMMAND_BUFFER_BIT);
-        // let prepare_buffer = vulkan.alloc_command_buffers(command_pool, VkCommandBufferLevel::PRIMARY, 1)[0];
-        // vulkan.start_recording(prepare_buffer, VkCommandBufferUsageFlags::ONE_TIME_SUBMIT_BIT, RecordingInfo {
-        //     renderPass: Default::default(),
-        //     subpass: 0,
-        //     framebuffer: Default::default(),
-        //     occlusionQueryEnable: false,
-        //     queryFlags: Default::default(),
-        //     pipelineStatistics: Default::default(),
-        // });
-        // self.test_box.iter_mut().for_each(|renderable| {
-        //     renderable.prepare(vulkan, prepare_buffer, &mut staging);
-        // });
-        //
-        // vulkan.end_recording(prepare_buffer);
-        // vulkan.submit_buffer(vulkan.get_queues()[0], VkFence::none(), &[prepare_buffer], &[], &[]);
 
-        // one_time.destroy(vulkan);
         staging.destroy(vulkan);
         self.prepared = true;
     }
 
-    pub fn render_loop(&mut self, vulkan: &Vulkan, swapchain: &mut SwapchainInfo, delta_time: f64) {
+    pub fn render_loop(&mut self, vulkan: &Vulkan, swapchain: &mut SwapchainInfo, ctx: &mut Context, handler: &mut WinitHandler, frame_info: FrameInfo) {
         if !self.prepared {
             return;
         }
@@ -157,7 +131,7 @@ impl RenderLoop {
         let image_index = vulkan.get_next_image_index(swapchain, frame_resource.image_available_semaphore(), VkFence::none()) as usize;
         let image_resource = self.per_image_resources.get(image_index).unwrap();
 
-        if self.camera.tick_speed(delta_time) {
+        if self.camera.tick_speed(frame_info.delta_time) {
             self.scene.ubo.set_view(self.camera.view_matrix());
         };
 
@@ -198,9 +172,6 @@ impl RenderLoop {
         unsafe { vkCmdSetScissor(frame_resource.command_buffer(), 0, 1, scissors.as_ptr()); };
 
         self.scene.render_scene(vulkan, frame_resource.command_buffer(), self.graph_pipeline_layout.layout);
-        // self.test_box.iter_mut().for_each(|renderable| {
-        //     renderable.render(vulkan, frame_resource.command_buffer(), *self.graph_pipeline_layout);
-        // });
 
         vulkan.end_render_pass(frame_resource.command_buffer());
         self.fps.end(frame_resource.command_buffer());
@@ -221,6 +192,20 @@ impl RenderLoop {
             ..Default::default()
         };
         unsafe { vkQueuePresentKHR(self.present_queue, &present_info) };
+
+        //GUI
+        let raw_input = frame_info.raw_input;
+        let full_output = ctx.run(raw_input, |ctx| {
+            egui::CentralPanel::default().show(&ctx, |ui| {
+                ui.label("Hello world!");
+                if ui.button("Click me").clicked() {
+                    dbg!("Clicked!");
+                }
+            });
+        });
+        handler.handle_output(full_output.platform_output);
+        let clipped_primitives = ctx.tessellate(full_output.shapes, full_output.pixels_per_point);
+        //self.gui_renderer.render_primitives(vulkan, clipped_primitives);
 
         self.current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
     }

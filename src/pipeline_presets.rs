@@ -1,5 +1,5 @@
+use crate::prelude::*;
 use crate::vulkan::func::{bool_to_vkbool, Destructible, Vulkan};
-use crate::vulkan::r#impl::pipelines::{GraphicsPipelineCreateInfo, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineTessellationStateCreateInfo};
 use vulkan_raw::{VkBlendFactor, VkBlendOp, VkBool32, VkColorComponentFlags, VkCompareOp, VkCullModeFlags, VkDescriptorSetLayout, VkDynamicState, VkExtent2D, VkFrontFace, VkLogicOp, VkPipelineLayout, VkPipelineShaderStageCreateFlags, VkPolygonMode, VkPrimitiveTopology, VkRenderPass, VkSampleCountFlagBits, VkSampleCountFlags, VkShaderModule, VkShaderStageFlags, VkStencilOp, VkStencilOpState};
 
 const VERTEX_SHADER: &[u8] = include_bytes!(env!("vertex.spv"));
@@ -59,7 +59,7 @@ pub fn preset_graphic_pipeline(vulkan: &Vulkan, width: u32, height: u32, render_
                 primitive_restart_enable: bool_to_vkbool(false),
             }
         ),
-        tessellation_state: Some (PipelineTessellationStateCreateInfo {
+        tessellation_state: Some(PipelineTessellationStateCreateInfo {
             flags: Default::default(),
             patch_control_points: 1,
         }),

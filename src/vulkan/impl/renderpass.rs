@@ -51,7 +51,51 @@ impl Vulkan {
         framebuffer
     }
 
-    pub fn preset_renderpass_color_depth(&self, samples: VkSampleCountFlags, format: VkFormat) -> VkRenderPass {
+    pub fn preset_renderpass_color(&self, format: VkFormat, initial_layout: VkImageLayout, final_layout: VkImageLayout) -> VkRenderPass {
+        let attachment_descriptions = vec![
+            VkAttachmentDescription {
+                format,
+                samples: VkSampleCountFlags::SC_1_BIT,
+                loadOp: VkAttachmentLoadOp::CLEAR,
+                storeOp: VkAttachmentStoreOp::STORE,
+                stencilLoadOp: VkAttachmentLoadOp::DONT_CARE,
+                stencilStoreOp: VkAttachmentStoreOp::DONT_CARE,
+                initialLayout: initial_layout,
+                finalLayout: final_layout,
+                ..Default::default()
+            },
+        ];
+        let subpass_descriptions = vec![
+            SubpassParameters {
+                pipeline_type: VkPipelineBindPoint::GRAPHICS,
+                input_attachments: vec![],
+                color_attachments: vec![
+                    VkAttachmentReference {
+                        attachment: 0,
+                        layout: VkImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                    }
+                ],
+                resolve_attachments: vec![],
+                depth_stencil_attachment: None,
+                preserve_attachments: vec![],
+            }
+        ];
+
+        let subpass_dependencies = vec![
+            VkSubpassDependency {
+                srcSubpass: 0,
+                dstSubpass: VK_SUBPASS_EXTERNAL,
+                srcStageMask: VkPipelineStageFlags::COLOR_ATTACHMENT_OUTPUT_BIT,
+                dstStageMask: VkPipelineStageFlags::FRAGMENT_SHADER_BIT,
+                srcAccessMask: VkAccessFlags::COLOR_ATTACHMENT_WRITE_BIT,
+                dstAccessMask: VkAccessFlags::SHADER_READ_BIT,
+                dependencyFlags: Default::default(),
+            }
+        ];
+        self.create_render_pass(attachment_descriptions, subpass_descriptions, subpass_dependencies)
+    }
+
+    pub fn preset_renderpass_color_depth(&self, samples: VkSampleCountFlags, format: VkFormat, initial_layout: VkImageLayout, final_layout: VkImageLayout) -> VkRenderPass {
         let color_layout = if samples == VkSampleCountFlags::SC_1_BIT {
             VkImageLayout::PRESENT_SRC_KHR
         } else {
@@ -89,8 +133,8 @@ impl Vulkan {
                 storeOp: VkAttachmentStoreOp::STORE,
                 stencilLoadOp: VkAttachmentLoadOp::DONT_CARE,
                 stencilStoreOp: VkAttachmentStoreOp::DONT_CARE,
-                initialLayout: VkImageLayout::UNDEFINED,
-                finalLayout: VkImageLayout::PRESENT_SRC_KHR,
+                initialLayout: initial_layout,
+                finalLayout: final_layout,
                 ..Default::default()
             });
         }

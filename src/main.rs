@@ -1,14 +1,16 @@
+use std::error::Error;
 use crate::both::RenderLoop;
 use crate::engine::{create_window, Callbacks, Settings};
-use vulkan_raw::VkSampleCountFlags;
+use crate::prelude::*;
 
 pub mod application;
 pub mod vulkan;
 pub mod engine;
 pub mod both;
 pub mod pipeline_presets;
+pub mod prelude;
 
-fn main() {
+fn main() -> Result<(),Box<dyn Error>> {
     create_window(Settings {
         width: 1200,
         height: 900,
@@ -22,5 +24,5 @@ fn main() {
             key_released: RenderLoop::key_released,
         },
         ..Default::default()
-    });
+    })
 }

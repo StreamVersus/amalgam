@@ -1,13 +1,13 @@
-use crate::engine::utils::obj_n_size::NSize;
+use crate::engine::buffers::ubo::{UniformBuffer, MATRICES_SIZE};
 use crate::engine::buffers::vbo::VBO;
+use crate::engine::buffers::virtual_buffer::VirtualBuffer;
+use crate::engine::utils::obj_n_size::NSize;
+use crate::prelude::*;
 use crate::vulkan::func::Vulkan;
 use crate::vulkan::gltf::gltf_struct::{Attributes, Gltf};
 use crate::vulkan::gltf::scene::{check_length, check_magic, raw_to_chunks, MaterialID, SIZE_TEXCOORDS};
 use crate::vulkan::gltf::scene::{Image, Mesh, Node, Primitive, Scene};
-use crate::engine::buffers::ubo::{UniformBuffer, MATRICES_SIZE};
 use crate::vulkan::gltf::utils::{read_samplers, resolve_amount, resolve_mesh, resolve_offset, resolve_size, resolve_vertex, resolve_vertices, ImageFormat, IndirectParameters, StagingBuffer};
-use crate::vulkan::r#impl::descriptors::{BufferDescriptorInfo, DescriptorSetInfo, ImageDescriptorInfo, PooledDescriptors};
-use crate::vulkan::r#impl::memory::{AllocationInfo, AllocationTask, VkDestroy};
 use crate::vulkan::utils::{build_pool_size, BufferUsage, ImageUsage};
 use fragment::{SAMPLER_LIMIT, TEXTURE_LIMIT};
 use png::Decoder;
@@ -16,7 +16,6 @@ use std::io::Cursor;
 use std::ptr::null_mut;
 use ultraviolet::{Mat3, Mat4, Rotor3, Vec3, Vec4};
 use vulkan_raw::{VkDescriptorBufferInfo, VkDescriptorImageInfo, VkDescriptorSetLayoutBinding, VkDescriptorType, VkExtent3D, VkImageAspectFlags, VkImageLayout, VkImageType, VkImageView, VkImageViewType, VkSampleCountFlagBits, VkSampler, VkShaderStageFlags, VK_WHOLE_SIZE};
-use crate::engine::buffers::virtual_buffer::VirtualBuffer;
 
 impl Scene {
     pub fn from_glb(bytes: &[u8], vulkan: Vulkan, staging: &mut StagingBuffer) -> Scene {
@@ -160,16 +159,13 @@ impl Scene {
         let model_ssbo = vulkan.create_buffer(model_matrices_size, BufferUsage::default().storage_buffer(true).transfer_dst(true)).unwrap();
         let material_ranges_ssbo = vulkan.create_buffer(material_ranges_size, BufferUsage::default().storage_buffer(true).transfer_dst(true)).unwrap();
 
-        let main_buffers_info = AllocationTask::device()
-            .add_allocatable(idx_buffer)
-            .add_allocatable(indirect_buffer)
-            .add_allocatable(model_ssbo)
-            .add_allocatable(material_ranges_ssbo)
-            .allocate_all(&vulkan);
+
+        let main_buffers = vec![idx_buffer, indirect_buffer, model_ssbo, material_ranges_ssbo];
+        let main_buffers_info = vulkan.allocator.device(main_buffers, &vulkan);
 
         let samplers: Vec<VkSampler> = read_samplers(&vulkan, &gltf);
 
-        let mut device_task = AllocationTask::device();
+        let mut imgs = Vec::with_capacity(gltf.images.len());
         let texture_images = gltf.images.iter().map(|image_info| {
             let format = ImageFormat::from(image_info.mimeType.clone()).into();
             let byte_blob = {
@@ -202,11 +198,11 @@ impl Scene {
                 depth: 1,
             };
             let image = vulkan.create_image(format, VkImageType::IT_2D, false, 1, 1, resolution, VkSampleCountFlagBits::SC_1_BIT, ImageUsage::default().sampled(true).transfer_dst(true));
-            device_task.add_allocatable_ref(image);
+            imgs.push(image);
 
             (image, rgba, format, resolution)
         }).collect::<Vec<_>>();
-        let texture_image_info = device_task.allocate_all(&vulkan);
+        let texture_image_info = vulkan.allocator.device(imgs, &vulkan);
 
         let texture_images = texture_images.into_iter().map(|(image, data, format, extent)| {
             let image_view = vulkan.create_image_view(&image, VkImageViewType::IVT_2D, format, VkImageAspectFlags::COLOR_BIT);
@@ -289,10 +285,10 @@ impl Scene {
         }).collect();
         let ubo_size = MATRICES_SIZE as u64;
         let ubo_host_buffer = vulkan.create_buffer(ubo_size, BufferUsage::preset_staging()).unwrap();
-        let ubo_host_info = AllocationTask::host_cached().add_allocatable(ubo_host_buffer).allocate_all(&vulkan);
+        let ubo_host_info = vulkan.allocator.host_cached(vec![ubo_host_buffer], &vulkan);
 
         let ubo_device_buffer = vulkan.create_buffer(ubo_size, BufferUsage::default().uniform_buffer(true).transfer_dst(true)).unwrap();
-        let ubo_device_info = AllocationTask::device().add_allocatable(ubo_device_buffer).allocate_all(&vulkan);
+        let ubo_device_info = vulkan.allocator.device(vec![ubo_device_buffer], &vulkan);
 
         vulkan.update_descriptor_sets(vec![
             ImageDescriptorInfo {

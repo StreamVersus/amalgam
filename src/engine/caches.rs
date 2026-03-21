@@ -1,5 +1,5 @@
 use crate::engine::caches::cache::DeviceInfo;
-use crate::vulkan::r#impl::device::LoadedDevice;
+use crate::prelude::LoadedDevice;
 
 include!(concat!(env!("OUT_DIR"), "/cache.rs"));
 

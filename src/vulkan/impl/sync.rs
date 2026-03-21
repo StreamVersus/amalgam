@@ -1,6 +1,6 @@
 use crate::vulkan::func::{bool_to_vkbool, Destructible, Vulkan};
 use std::ptr::null;
-use vulkan_raw::{vkCreateFence, vkCreateSemaphore, vkDestroyFence, vkDestroySemaphore, vkDeviceWaitIdle, vkResetFences, vkWaitForFences, VkFence, VkFenceCreateFlagBits, VkFenceCreateFlags, VkFenceCreateInfo, VkResult, VkSemaphore, VkSemaphoreCreateInfo};
+use crate::prelude::*;
 
 impl Vulkan {
     pub fn create_semaphore(&self) -> VkSemaphore {

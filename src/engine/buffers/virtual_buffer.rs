@@ -1,8 +1,7 @@
+use crate::prelude::*;
+use crate::vulkan::func::Vulkan;
 use std::ffi::c_void;
 use std::ops::Deref;
-use crate::vulkan::r#impl::memory::MemoryInfo;
-use vulkan_raw::{VkBuffer, VkDeviceSize};
-use crate::vulkan::func::Vulkan;
 
 #[derive(Default)]
 pub struct VirtualBuffer {

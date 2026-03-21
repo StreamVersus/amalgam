@@ -1,10 +1,8 @@
+use crate::prelude::*;
 use crate::vulkan::func::Vulkan;
 use crate::vulkan::gltf::scene::Vertex;
-use crate::vulkan::r#impl::memory::{AllocationTask, MemoryInfo, VkDestroy};
-use crate::vulkan::r#impl::pipelines::VertexBufferParameters;
 use crate::vulkan::utils::BufferUsage;
 use std::ffi::c_void;
-use vulkan_raw::{VkBuffer, VkBufferCopy, VkCommandBuffer, VkDeviceMemory};
 
 #[derive(Default)]
 pub struct VBO {
@@ -14,7 +12,6 @@ pub struct VBO {
 
     _device_memory: VkDestroy<VkDeviceMemory>,
     _host_memory: VkDestroy<VkDeviceMemory>,
-    host_info: MemoryInfo,
 
     dirty: bool,
     offset: u64,
@@ -26,8 +23,8 @@ impl VBO {
         let device_buffer = vulkan.create_buffer(size, BufferUsage::preset_vertex()).unwrap();
         let host_buffer = vulkan.create_buffer(size, BufferUsage::preset_staging()).unwrap();
 
-        let device_info = AllocationTask::device().add_allocatable(device_buffer).allocate_all(vulkan);
-        let host_info = AllocationTask::host_cached().add_allocatable(host_buffer).allocate_all(vulkan);
+        let device_info = vulkan.allocator.device(vec![device_buffer], &vulkan);
+        let host_info = vulkan.allocator.host_coherent(vec![host_buffer], &vulkan);
 
         let device_memory = device_info.pull_buffer_info(&device_buffer).memory_object;
         let host_memory = host_info.pull_buffer_info(&host_buffer);
@@ -38,7 +35,6 @@ impl VBO {
             host_ptr: vulkan.map_memory(&host_memory),
             _device_memory: VkDestroy::new(device_memory, vulkan),
             _host_memory: VkDestroy::new(host_memory.memory_object, vulkan),
-            host_info: host_memory,
             dirty: false,
             offset: 0,
             size,
@@ -47,7 +43,6 @@ impl VBO {
 
     pub fn sync_buffer(&mut self, vulkan: &Vulkan, command_buffer: VkCommandBuffer) {
         if self.dirty {
-            vulkan.flush_memory(&[self.host_info]);
             vulkan.buffer_to_buffer(vec![VkBufferCopy {
                 srcOffset: 0,
                 dstOffset: 0,

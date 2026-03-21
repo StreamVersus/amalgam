@@ -1,9 +1,7 @@
 use crate::engine::buffers::vbo::VBO;
+use crate::prelude::*;
 use crate::vulkan::func::{Destructible, Vulkan};
 use crate::vulkan::gltf::gltf_struct::{Attributes, Gltf, Node};
-use crate::vulkan::r#impl::memory::AllocationTask;
-use crate::vulkan::r#impl::memory::MemoryInfo;
-use crate::vulkan::r#impl::sampler::SamplerInfo;
 use crate::vulkan::utils::BufferUsage;
 use vulkan_raw::{VkBorderColor, VkBuffer, VkCompareOp, VkFilter, VkFormat, VkSampler, VkSamplerAddressMode, VkSamplerMipmapMode};
 
@@ -244,7 +242,7 @@ impl StagingBuffer {
             let buffer = vulkan.create_buffer(size, BufferUsage::preset_staging()).unwrap();
             self.buffer.destroy(vulkan);
             self.buffer = buffer;
-            self.info = AllocationTask::host_coherent().add_allocatable(buffer).allocate_all(vulkan).get_all_info()[0];
+            self.info = vulkan.allocator.host_coherent(vec![buffer], vulkan).get_all_info()[0];
         }
 
         self.buffer

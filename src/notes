@@ -1,9 +1,10 @@
-todo
-dont forget to pass model matrix and texture indexes
-generate mipmaps
-lighting
+adv memory allocation
+virtual buffers
+dynamic vbo and idx
+gui overlay
 
-quantization
-compression(drako + astc + astc-to-bn7 fallback)
+pipeline selector
+webgpu and wasm builds
 
-add binary of shaders to caches
+sound engine
+nintendo switch build

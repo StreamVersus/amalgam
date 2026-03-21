@@ -1,10 +1,8 @@
+use crate::prelude::*;
 use crate::vulkan::func::{Destructible, Vulkan};
 use crate::vulkan::gltf::scene::{MaterialID, Scene};
 use crate::vulkan::gltf::utils::{IndirectParameters, StagingBuffer};
-use crate::vulkan::r#impl::command_buffer::RecordingInfo;
-use crate::vulkan::r#impl::image::ImageTransition;
 use ultraviolet::Mat4;
-use vulkan_raw::{vkCmdDrawIndexedIndirect, VkAccessFlags, VkBufferCopy, VkBufferImageCopy, VkCommandBuffer, VkCommandBufferLevel, VkCommandBufferUsageFlags, VkCommandPoolCreateFlags, VkDeviceSize, VkFence, VkImageAspectFlags, VkImageLayout, VkImageSubresourceLayers, VkIndexType, VkPipelineBindPoint, VkPipelineLayout, VkPipelineStageFlags, VK_QUEUE_FAMILY_IGNORED};
 
 impl Scene {
     pub fn prepare(&mut self, vulkan: &Vulkan, staging: &mut StagingBuffer) {

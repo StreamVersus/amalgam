@@ -1,14 +1,12 @@
-use crate::engine::shapes::renderable::Renderable;
 use crate::engine::buffers::vbo::VBO;
+use crate::engine::shapes::renderable::Renderable;
+use crate::prelude::*;
 use crate::vulkan::func::Vulkan;
 use crate::vulkan::gltf::scene::Vertex;
 use crate::vulkan::gltf::utils::StagingBuffer;
-use crate::vulkan::r#impl::memory::AllocationTask;
-use crate::vulkan::r#impl::memory::VkDestroy;
 use crate::vulkan::utils::BufferUsage;
-use rand::Rng;
+use rand::{Rng, RngExt};
 use ultraviolet::{f32x8, Vec3, Vec3x8};
-use vulkan_raw::{vkCmdDrawIndexed, VkBuffer, VkBufferCopy, VkCommandBuffer, VkIndexType, VkPipelineBindPoint, VkPipelineLayout};
 
 pub trait AABB {
     fn box_min(&self) -> &Vec3;
@@ -67,10 +65,10 @@ impl AABB for RenderableAABox {
 
 impl Renderable for RenderableAABox {
     #[allow(unused_variables)]
-    fn allocate(&mut self, vulkan: &Vulkan, host: &mut AllocationTask, device: &mut AllocationTask) {
+    fn allocate(&mut self, vulkan: &Vulkan, host: &mut BatchedStorage, device: &mut BatchedStorage) {
         let index = vulkan.create_buffer(size_of::<u16>() as u64 * 36, BufferUsage::preset_index()).unwrap();
 
-        host.add_allocatable_ref(index);
+        host.add_buffer(index);
 
         self.vertex = VBO::new(vulkan, size_of::<Vertex>() as u64 * 8);
         self.index = VkDestroy::new(index, vulkan);

@@ -1,39 +1,63 @@
 use crate::application::WINDOW_TITLE;
 use crate::both::RenderLoop;
-use crate::engine::{Delta, Settings};
+use crate::engine::utils::gui::{egui_to_winit_cursor, EGuiMediator};
+use crate::engine::{Delta, FrameInfo, Settings};
+use crate::prelude::*;
 use crate::vulkan::func::Vulkan;
-use crate::vulkan::r#impl::swapchain::SwapchainInfo;
+use egui::{PlatformOutput, Vec2};
 use std::collections::HashSet;
-use vulkan_raw::{VkSurfaceKHR, VkSwapchainKHR};
+use std::rc::Rc;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::{DeviceEvent, DeviceId, ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{CursorGrabMode, Window, WindowId};
+use winit::window::{CursorGrabMode, Window, WindowAttributes, WindowId};
 
 #[derive(Default)]
 pub struct App {
-    pub window: Option<Window>,
+    pub window: Option<Rc<Box<dyn Window>>>,
     pub delta: Delta,
     pub settings: Settings,
     pub vulkan: Vulkan,
     pub swapchain_info: SwapchainInfo,
     pub render_loop: RenderLoop,
     pub pressed_keys: HashSet<KeyCode>,
-    
+    pub handler: Option<WinitHandler>,
+    pub egui: EGuiMediator,
+
     pub focused: bool,
 }
 
+pub struct WinitHandler {
+    pub window: Rc<Box<dyn Window>>,
+}
+
+impl WinitHandler {
+    pub fn handle_output(&mut self, platform_output: PlatformOutput) {
+        self.window.set_cursor(egui_to_winit_cursor(platform_output.cursor_icon));
+    }
+}
+
 impl ApplicationHandler for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window_attrs = Window::default_attributes()
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
+        let window_attrs = WindowAttributes::default()
             .with_title(WINDOW_TITLE)
-            .with_inner_size(PhysicalSize::new(self.settings.width, self.settings.height))
+            .with_surface_size(PhysicalSize::new(self.settings.width, self.settings.height))
             .with_visible(true);
         let window = event_loop.create_window(window_attrs).unwrap();
+        let scale = window.scale_factor() as f32;
 
-        let surface = self.vulkan.connect_vulkan(&window);
+        let window_rc = Rc::new(window);
+        self.window = Some(window_rc.clone());
+        self.egui = EGuiMediator::init(Vec2::new(self.settings.width as f32, self.settings.height as f32), scale);
+        println!("egui setup finished");
+
+
+        self.handler = Some(WinitHandler {
+             window: window_rc.clone(),
+        });
+        let surface = self.vulkan.connect_vulkan(self.window.as_ref().unwrap());
         self.swapchain_info
             .set_width(self.settings.width)
             .set_height(self.settings.height)
@@ -42,16 +66,15 @@ impl ApplicationHandler for App {
         self.vulkan.create_swapchain(&mut self.swapchain_info);
 
         (self.settings.callbacks.render_init)(&mut self.render_loop, &mut self.vulkan, &mut self.swapchain_info, &mut self.settings);
-
-        self.window = Some(window);
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+    fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
+        self.egui.handle_window_event(event.clone());
         match event {
             WindowEvent::CloseRequested => {
                 self.vulkan.destroy_swapchain(self.swapchain_info.swapchain);
                 self.swapchain_info.swapchain = VkSwapchainKHR::none();
-                
+
                 self.vulkan.destroy_surface(self.swapchain_info.surface);
                 self.swapchain_info.surface = VkSurfaceKHR::none();
 
@@ -61,22 +84,17 @@ impl ApplicationHandler for App {
 
                 event_loop.exit();
             },
-            WindowEvent::Resized(new_size) => {
-                if self.swapchain_info.width != new_size.width || self.swapchain_info.height != new_size.height {
-                    self.swapchain_info.set_width(new_size.width).set_height(new_size.height);
-                }
-            }
-            WindowEvent::RedrawRequested => {
-                (self.settings.callbacks.render)(&mut self.render_loop, &mut self.vulkan, &mut self.swapchain_info, self.delta.tick());
-                self.delta.sleep_till_next_frame();
-                self.window.as_ref().unwrap().request_redraw();
-            }
+            WindowEvent::SurfaceResized(size) => {
+                self.swapchain_info.set_width(size.width).set_height(size.height);
+            },
             WindowEvent::Focused(focused) => {
                 let window = self.window.as_ref().unwrap();
                 if focused {
                     window.set_cursor_visible(false);
                     window.set_cursor_grab(CursorGrabMode::Locked)
-                        .unwrap_or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined).unwrap());
+                        .unwrap_or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined).unwrap_or_else(|_| {
+                            eprintln!("FAILED TO CATCH CURSOR");
+                        }));
                 } else {
                     window.set_cursor_visible(true);
                     window.set_cursor_grab(CursorGrabMode::None).unwrap();
@@ -100,37 +118,33 @@ impl ApplicationHandler for App {
                     }
                     PhysicalKey::Unidentified(key) => eprintln!("Unidentified key {:?}", key),
                 }
+            },
+            WindowEvent::RedrawRequested => {
+                let frame_info = FrameInfo {
+                    delta_time: self.delta.tick(),
+                    raw_input: self.egui.take_egui_input(),
+                };
+
+                (self.settings.callbacks.render)(&mut self.render_loop, &mut self.vulkan, &mut self.swapchain_info, &mut self.egui.ctx, self.handler.as_mut().unwrap(), frame_info);
+                self.delta.sleep_till_next_frame();
+                self.window.as_ref().unwrap().request_redraw();
             }
             _ => (),
         }
     }
 
-    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: DeviceId, event: DeviceEvent) {
+    fn device_event(&mut self, _event_loop: &dyn ActiveEventLoop, _device_id: Option<DeviceId>, event: DeviceEvent) {
+        self.egui.handle_device_event(event.clone());
         match event {
-            DeviceEvent::MouseMotion { delta: (x_delta, y_delta) } => {
+            DeviceEvent::PointerMotion { delta: (x_delta, y_delta) } => {
                 if !self.focused {
                     return;
                 }
-                
+
                 let sensitivity = self.settings.sensitivity;
                 let scaled_flipped_delta = (x_delta * sensitivity.0, -y_delta * sensitivity.1);
                 (self.settings.callbacks.handle_mouse)(&mut self.render_loop, scaled_flipped_delta);
-            }
-            DeviceEvent::Key(input) => {
-                match input.physical_key {
-                    PhysicalKey::Code(key_code) => {
-                        if input.state == ElementState::Pressed {
-                            (self.settings.callbacks.key_pressed)(&mut self.render_loop, key_code);
-                        } else {
-                            (self.settings.callbacks.key_released)(&mut self.render_loop, key_code);
-                        }
-                    }
-                    #[allow(unused_variables)]
-                    PhysicalKey::Unidentified(key) => {
-                        #[cfg(debug_assertions)] eprintln!("key {key:?} unidentified");
-                    }
-                }
-            }
+            },
             _ => {},
         }
     }

@@ -79,30 +79,30 @@ impl Vulkan {
     pub fn get_image_memory_requirements(&self, image: &VkImage) -> (VkMemoryRequirements, bool) {
         let device = self.get_loaded_device().logical_device;
 
-        let requirement;
-        let is_dedicated;
         unsafe {
             if self.is_version_supported(VkVersion::V1_1) {
-                let dedicated_info = VkMemoryDedicatedRequirements::default();
-                let info = VkImageMemoryRequirementsInfo2 {
-                    pNext: &dedicated_info as *const _ as *const c_void,
+                let mut dedicated_info = VkMemoryDedicatedRequirements::default();
+                let mut requirements2  = VkMemoryRequirements2 {
+                    pNext: &mut dedicated_info as *mut _ as *mut c_void,
+                    ..Default::default()
+                };
+
+                let info2 = VkImageMemoryRequirementsInfo2 {
                     image: *image,
                     ..Default::default()
                 };
 
-                let mut ph: MaybeUninit<VkMemoryRequirements2> = MaybeUninit::uninit();
-                vkGetImageMemoryRequirements2(device, &info, ph.as_mut_ptr());
+                vkGetImageMemoryRequirements2(device, &info2, &mut requirements2);
 
-                is_dedicated = dedicated_info.prefersDedicatedAllocation.into() || dedicated_info.requiresDedicatedAllocation.into();
-                requirement = ph.assume_init().memoryRequirements;
+                let is_dedicated = dedicated_info.prefersDedicatedAllocation.into()
+                    || dedicated_info.requiresDedicatedAllocation.into();
+
+                (requirements2.memoryRequirements, is_dedicated)
             } else {
-                let mut ph: MaybeUninit<VkMemoryRequirements> = MaybeUninit::uninit();
-                vkGetImageMemoryRequirements(device, *image, ph.as_mut_ptr());
-
-                requirement = ph.assume_init();
-                is_dedicated = false;
+                let mut req = MaybeUninit::<VkMemoryRequirements>::uninit();
+                vkGetImageMemoryRequirements(device, *image, req.as_mut_ptr());
+                (req.assume_init(), false)
             }
-            (requirement, is_dedicated)
         }
     }
 
