@@ -34,7 +34,7 @@ impl Vulkan {
         let allocate_info = VkMemoryAllocateInfo {
             pNext: &dedicated_info as *const _ as *const c_void,
             allocationSize: req.size,
-            memoryTypeIndex: self.find_memory_type(&[&req], flags).unwrap(),
+            memoryTypeIndex: self.find_memory_type(&[req], flags).unwrap(),
             ..Default::default()
         };
 
@@ -79,7 +79,7 @@ impl Vulkan {
         unsafe { vkUnmapMemory(self.get_loaded_device().logical_device, memory.memory_object) };
     }
 
-    pub fn find_memory_type(&self, memory_requirements: &[&VkMemoryRequirements], properties: VkMemoryPropertyFlags) -> Option<u32> {
+    pub fn find_memory_type(&self, memory_requirements: &[VkMemoryRequirements], properties: VkMemoryPropertyFlags) -> Option<u32> {
         let memory_type_bits = memory_requirements
             .iter()
             .map(|req| req.memoryTypeBits)
