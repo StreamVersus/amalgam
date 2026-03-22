@@ -6,6 +6,7 @@ use crate::prelude::*;
 use crate::vulkan::func::Vulkan;
 use egui::{PlatformOutput, Vec2};
 use std::collections::HashSet;
+use std::ptr;
 use std::rc::Rc;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -78,8 +79,34 @@ impl ApplicationHandler for App {
                 self.vulkan.destroy_surface(self.swapchain_info.surface);
                 self.swapchain_info.surface = VkSurfaceKHR::none();
 
+                unsafe {
+                    let mut stats_string: *mut i8 = ptr::null_mut();
+                    vmaBuildStatsString(self.vulkan.pool().allocator(), &mut stats_string, VkBool32::TRUE);
+
+                    let cstr = std::ffi::CStr::from_ptr(stats_string);
+                    println!("{}", cstr.to_string_lossy());
+
+                    vmaFreeStatsString(self.vulkan.pool().allocator(), stats_string); // must free it
+
+                    let mut stats = VmaTotalStatistics::default();
+                    vmaCalculateStatistics(self.vulkan.pool().allocator(), &mut stats);
+
+                    println!("=== VMA Stats ===");
+                    println!("total allocations:  {}", stats.total.statistics.allocationCount);
+                    println!("total alloc bytes:  {}", stats.total.statistics.allocationBytes);
+                    println!("total blocks:       {}", stats.total.statistics.blockCount);
+                    println!("total block bytes:  {}", stats.total.statistics.blockBytes);
+                    println!("unused range count: {}", stats.total.unusedRangeCount);
+                    println!("alloc size min:     {}", stats.total.allocationSizeMin);
+                    println!("alloc size max:     {}", stats.total.allocationSizeMax);
+                    println!("unused range min:   {}", stats.total.unusedRangeSizeMin);
+                    println!("unused range max:   {}", stats.total.unusedRangeSizeMax);
+                }
+
                 self.vulkan.device_wait();
                 self.render_loop = RenderLoop::default();
+                
+                self.vulkan.pool().finish();
                 self.vulkan.finish();
 
                 event_loop.exit();

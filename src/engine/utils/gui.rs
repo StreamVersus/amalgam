@@ -183,7 +183,7 @@ pub fn winit_mouse_button(button: winit::event::MouseButton) -> Option<PointerBu
 }
 
 // ── Modifier tracking ─────────────────────────────────────────────────────────
-
+#[allow(deprecated)]
 pub fn update_modifiers(mut mods: Modifiers, key: &PhysicalKey, pressed: bool) -> Modifiers {
     match key {
         PhysicalKey::Code(KeyCode::ShiftLeft | KeyCode::ShiftRight) => mods.shift = pressed,

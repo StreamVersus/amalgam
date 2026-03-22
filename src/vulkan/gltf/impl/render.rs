@@ -3,6 +3,7 @@ use crate::vulkan::func::{Destructible, Vulkan};
 use crate::vulkan::gltf::scene::{MaterialID, Scene};
 use crate::vulkan::gltf::utils::{IndirectParameters, StagingBuffer};
 use ultraviolet::Mat4;
+use crate::engine::buffers::vbo::VBO;
 
 impl Scene {
     pub fn prepare(&mut self, vulkan: &Vulkan, staging: &mut StagingBuffer) {
@@ -16,8 +17,7 @@ impl Scene {
         }
 
         let staging_buffer = staging.pull(max_staging_size, vulkan);
-        let staging_info = staging.info();
-        let staging_ptr = vulkan.map_memory(staging_info);
+        let staging_ptr = staging_buffer.map_memory(vulkan);
 
         let command_pool = vulkan.create_command_pool(vulkan.get_loaded_device().queue_info[0].family_index, VkCommandPoolCreateFlags::empty());
         let one_time_command_buffer = vulkan.alloc_command_buffers(command_pool, VkCommandBufferLevel::PRIMARY, 1)[0];
@@ -50,7 +50,7 @@ impl Scene {
                 current_offset += image.size;
             }
         }
-        vulkan.flush_memory(&[*staging_info]);
+        staging_buffer.flush_memory(vulkan);
 
         vulkan.start_recording(one_time_command_buffer, VkCommandBufferUsageFlags::ONE_TIME_SUBMIT_BIT, RecordingInfo {
             renderPass: Default::default(),
@@ -61,39 +61,39 @@ impl Scene {
             pipelineStatistics: Default::default(),
         });
 
-        self.vbo.sync_buffer(vulkan, one_time_command_buffer);
+        self.device_vbo.sync_buffer(vulkan, one_time_command_buffer, &self.staging_vbo);
 
         let mut offset: VkDeviceSize = 0;
         // Copy indices
-        vulkan.buffer_to_buffer(vec![VkBufferCopy {
+        vulkan.buffer_to_buffer(&[VkBufferCopy {
             srcOffset: offset,
             dstOffset: 0,
             size: self.idx.size() as VkDeviceSize,
-        }], one_time_command_buffer, staging_buffer, *self.idx.get());
+        }], one_time_command_buffer, **staging_buffer, *self.idx.get());
         offset += self.idx.size() as u64;
 
         // Copy parameters
-        vulkan.buffer_to_buffer(vec![VkBufferCopy {
+        vulkan.buffer_to_buffer(&[VkBufferCopy {
             srcOffset: offset,
             dstOffset: 0,
             size: self.parameters.size() as VkDeviceSize,
-        }], one_time_command_buffer, staging_buffer, *self.indirect_buffer.get());
+        }], one_time_command_buffer, **staging_buffer, *self.indirect_buffer.get());
         offset += self.parameters.size() as u64;
 
         // Copy model ssbo
-        vulkan.buffer_to_buffer(vec![VkBufferCopy {
+        vulkan.buffer_to_buffer(&[VkBufferCopy {
             srcOffset: offset,
             dstOffset: 0,
             size: (self.model_matrices.len() * size_of::<Mat4>()) as VkDeviceSize,
-        }], one_time_command_buffer, staging_buffer, *self.model_ssbo.get());
+        }], one_time_command_buffer, **staging_buffer, *self.model_ssbo.get());
         offset += (self.model_matrices.len() * size_of::<Mat4>()) as VkDeviceSize;
 
         // Copy material ssbo
-        vulkan.buffer_to_buffer(vec![VkBufferCopy {
+        vulkan.buffer_to_buffer(&[VkBufferCopy {
             srcOffset: offset,
             dstOffset: 0,
             size: (self.material_ranges.len() * size_of::<MaterialID>()) as VkDeviceSize,
-        }], one_time_command_buffer, staging_buffer, *self.material_ssbo.get());
+        }], one_time_command_buffer, **staging_buffer, *self.material_ssbo.get());
         //offset += (self.material_ranges.len() * size_of::<MaterialID>()) as VkDeviceSize;
 
         // Transition and copy images
@@ -127,7 +127,7 @@ impl Scene {
                     imageOffset: Default::default(),
                     imageExtent: image.extent,
                 }
-            ], one_time_command_buffer, staging_buffer, *image.image.get(), VkImageLayout::TRANSFER_DST_OPTIMAL);
+            ], one_time_command_buffer, **staging_buffer, *image.image.get(), VkImageLayout::TRANSFER_DST_OPTIMAL);
 
             ImageTransition {
                 image: *image.image.get(),
@@ -147,6 +147,7 @@ impl Scene {
         vulkan.submit_buffer(vulkan.get_queues()[0], VkFence::none(), &[one_time_command_buffer], &[], &[]);
         vulkan.wait_for_queue(vulkan.get_queues()[0]);
 
+        self.staging_vbo = VBO::default();
         vulkan.free_buffers(command_pool, &[one_time_command_buffer]);
         command_pool.destroy(vulkan);
 
@@ -156,7 +157,7 @@ impl Scene {
     }
 
     pub fn render_scene(&self, vulkan: &Vulkan, command_buffer: VkCommandBuffer, pipeline_layout: VkPipelineLayout) {
-        self.vbo.bind(vulkan, command_buffer);
+        self.device_vbo.bind(vulkan, command_buffer);
 
         vulkan.bind_index_buffer(command_buffer, *self.idx.get(), 0, VkIndexType::UINT16);
         vulkan.bind_descriptor_sets(command_buffer, VkPipelineBindPoint::GRAPHICS, pipeline_layout, 0, &self.descriptors.descriptor_sets, &[]);

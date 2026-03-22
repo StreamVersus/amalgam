@@ -1,9 +1,10 @@
 use crate::engine::buffers::vbo::VBO;
+use crate::prelude::pool_alloc::Buffer;
 use crate::prelude::*;
-use crate::vulkan::func::{Destructible, Vulkan};
+use crate::vulkan::func::Vulkan;
 use crate::vulkan::gltf::gltf_struct::{Attributes, Gltf, Node};
 use crate::vulkan::utils::BufferUsage;
-use vulkan_raw::{VkBorderColor, VkBuffer, VkCompareOp, VkFilter, VkFormat, VkSampler, VkSamplerAddressMode, VkSamplerMipmapMode};
+use vulkan_raw::{VkBorderColor, VkCompareOp, VkFilter, VkFormat, VkSampler, VkSamplerAddressMode, VkSamplerMipmapMode};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ImageFormat {
@@ -206,16 +207,7 @@ pub fn read_samplers(vulkan: &Vulkan, gltf: &Gltf) -> Vec<VkSampler> {
     }).collect()
 }
 pub struct StagingBuffer {
-    size: u64,
-    buffer: VkBuffer,
-    info: MemoryInfo,
-}
-
-impl Destructible for StagingBuffer {
-    fn destroy(&self, vulkan: &Vulkan) {
-        self.buffer.destroy(vulkan);
-        self.info.memory_object.destroy(vulkan);
-    }
+    buffer: Buffer,
 }
 
 impl Default for StagingBuffer {
@@ -227,24 +219,30 @@ impl Default for StagingBuffer {
 impl StagingBuffer {
     pub fn new() -> Self {
         Self {
-            size: 0,
-            buffer: VkBuffer::none(),
-            info: Default::default(),
+            buffer: Buffer::default(),
         }
     }
     
-    pub fn info(&self) -> &MemoryInfo {
-        &self.info
-    }
-    
-    pub fn pull(&mut self, size: u64, vulkan: &Vulkan) -> VkBuffer {
-        if self.size < size {
-            let buffer = vulkan.create_buffer(size, BufferUsage::preset_staging()).unwrap();
-            self.buffer.destroy(vulkan);
-            self.buffer = buffer;
-            self.info = vulkan.allocator.host_coherent(vec![buffer], vulkan).get_all_info()[0];
+    pub fn pull(&mut self, size: u64, vulkan: &Vulkan) -> &Buffer {
+        if self.buffer.info.alloc_info.size < size {
+            self.buffer = Buffer::default();
+
+            let alloc_info = VmaAllocationCreateInfo {
+                usage: VmaMemoryUsage::AUTO_PREFER_HOST,
+                flags: VmaAllocationCreateFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+                ..Default::default()
+            };
+            self.buffer = vulkan.pool().allocate_buffer(size, BufferUsage::preset_staging(), alloc_info);
         }
 
-        self.buffer
+        &self.buffer
+    }
+}
+
+impl Drop for StagingBuffer {
+    fn drop(&mut self) {
+        unsafe {
+            vmaUnmapMemory(self.buffer.info.allocator(), self.buffer.info.alloc);
+        }
     }
 }

@@ -1,28 +1,28 @@
 use crate::prelude::LoadedDevice;
-use std::cmp::min;
 use std::io::Error;
 use vulkan_raw::{load_device_functions, load_instance_functions, ApiVersion, VkBool32, VkInstance, VkVersion};
+use crate::application::{ENGINE_MAJOR_VERSION, ENGINE_MINOR_VERSION, ENGINE_PATCH_VERSION};
 use crate::prelude::arena_alloc::ArenaAllocator;
+use crate::prelude::pool_alloc::PoolAllocator;
 
 #[derive(Default, Debug, Clone)]
 pub struct Vulkan {
     pub instance: Option<VkInstance>,
     pub loaded_device: Option<LoadedDevice>,
     api_version: ApiVersion,
-    pub allocator: ArenaAllocator,
+    vma: PoolAllocator,
 }
 
 impl Vulkan {
     pub fn init(&mut self) {
+        self.api_version = ApiVersion::new(ENGINE_MAJOR_VERSION, ENGINE_MINOR_VERSION, ENGINE_PATCH_VERSION);
+
         self.create_instance();
         load_instance_functions(self.get_instance());
         self.create_logical_device();
         load_device_functions(self.get_loaded_device().logical_device);
-        
-        let instance_api_version = self.get_instance_api_version();
-        let device_api_version = self.get_instance_api_version();
-        self.api_version = min(instance_api_version, device_api_version);
 
+        self.vma = PoolAllocator::new(self);
         dbg!(self.api_version);
     }
 
@@ -42,9 +42,21 @@ impl Vulkan {
         api_version as u32 >= self.api_version.into()
     }
 
+    pub fn get_api_version(&self) -> ApiVersion {
+        self.api_version
+    }
+
     pub fn finish(&mut self) {
         self.destroy_logical_device();
         self.destroy_instance();
+    }
+
+    pub fn arena(&self) -> ArenaAllocator {
+        ArenaAllocator::default()
+    }
+
+    pub fn pool(&self) -> &PoolAllocator {
+        &self.vma
     }
 }
 

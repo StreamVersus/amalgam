@@ -1,63 +1,73 @@
+use std::ffi::c_void;
+use std::ptr::null_mut;
 use crate::prelude::*;
 use crate::vulkan::func::Vulkan;
-use crate::vulkan::gltf::scene::Vertex;
 use crate::vulkan::utils::BufferUsage;
-use std::ffi::c_void;
+use crate::prelude::pool_alloc::Buffer;
+use crate::vulkan::gltf::scene::Vertex;
 
 #[derive(Default)]
 pub struct VBO {
-    device_buffer: VkDestroy<VkBuffer>,
-    host_buffer: VkDestroy<VkBuffer>,
-    host_ptr: *mut c_void,
-
-    _device_memory: VkDestroy<VkDeviceMemory>,
-    _host_memory: VkDestroy<VkDeviceMemory>,
-
-    dirty: bool,
+    buffer: Buffer,
+    staging: bool,
     offset: u64,
-    pub size: u64,
+    ptr: *mut c_void,
 }
 
 impl VBO {
-    pub fn new(vulkan: &Vulkan, size: u64) -> Self {
-        let device_buffer = vulkan.create_buffer(size, BufferUsage::preset_vertex()).unwrap();
-        let host_buffer = vulkan.create_buffer(size, BufferUsage::preset_staging()).unwrap();
+    pub fn new(vulkan: &Vulkan, size: u64, staging: bool) -> Self {
+        let pool = vulkan.pool();
 
-        let device_info = vulkan.allocator.device(vec![device_buffer], &vulkan);
-        let host_info = vulkan.allocator.host_coherent(vec![host_buffer], &vulkan);
-
-        let device_memory = device_info.pull_buffer_info(&device_buffer).memory_object;
-        let host_memory = host_info.pull_buffer_info(&host_buffer);
-
+        let alloc_info = VmaAllocationCreateInfo {
+            usage: if staging {VmaMemoryUsage::AUTO_PREFER_HOST} else {VmaMemoryUsage::AUTO_PREFER_DEVICE},
+            flags: VmaAllocationCreateFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+            ..Default::default()
+        };
+        let buffer = pool.allocate_buffer(size, if staging {BufferUsage::preset_staging()} else {BufferUsage::preset_vertex()}, alloc_info);
+        let ptr = if staging {buffer.map_memory(vulkan)} else {null_mut()};
         Self {
-            device_buffer: VkDestroy::new(device_buffer, vulkan),
-            host_buffer: VkDestroy::new(host_buffer, vulkan),
-            host_ptr: vulkan.map_memory(&host_memory),
-            _device_memory: VkDestroy::new(device_memory, vulkan),
-            _host_memory: VkDestroy::new(host_memory.memory_object, vulkan),
-            dirty: false,
+            buffer,
+            staging,
             offset: 0,
-            size,
+            ptr,
         }
     }
 
-    pub fn sync_buffer(&mut self, vulkan: &Vulkan, command_buffer: VkCommandBuffer) {
-        if self.dirty {
-            vulkan.buffer_to_buffer(vec![VkBufferCopy {
-                srcOffset: 0,
-                dstOffset: 0,
-                size: self.size,
-            }], command_buffer, *self.host_buffer.get(), *self.device_buffer.get());
-            self.dirty = false;
+    pub fn sync_buffer(&mut self, vulkan: &Vulkan, command_buffer: VkCommandBuffer, staging: &VBO) {
+        if self.staging {
+            eprintln!("SYNCING STAGING VBO, UNSTABLE BEHAVIOUR")
         }
+        vulkan.buffer_to_buffer(&[VkBufferCopy {
+            srcOffset: 0,
+            dstOffset: 0,
+            size: self.buffer.info.alloc_info.size,
+        }], command_buffer, *staging.buffer, *self.buffer);
+
+        vulkan.transition_buffers(vec![
+            BufferTransition {
+                buffer: *self.buffer,
+                offset: 0,
+                size: VK_WHOLE_SIZE,
+                src_stage: VkPipelineStageFlags2::TRANSFER_BIT,
+                dst_stage: VkPipelineStageFlags2::VERTEX_INPUT_BIT,
+                src_access: VkAccessFlags2::TRANSFER_WRITE_BIT,
+                dst_access: VkAccessFlags2::VERTEX_ATTRIBUTE_READ_BIT,
+                src_queue_family: VK_QUEUE_FAMILY_IGNORED,
+                dst_queue_family: VK_QUEUE_FAMILY_IGNORED,
+            }
+        ], command_buffer);
     }
 
     pub fn build_vertex_inplace(&mut self, pos: [f32; 3], normal: [f32; 3], uv: [f32; 2]) {
-        if self.offset + size_of::<Vertex>() as u64 > self.size {
+        if !self.staging {
+            panic!("BUILDING IN DEVICE VBO")
+        }
+
+        if self.offset + size_of::<Vertex>() as u64 > self.buffer.info.alloc_info.size {
             panic!("Tried to write to VBO, but overflowed");
         }
         unsafe {
-            let vertex = self.host_ptr.add(self.offset as usize) as *mut Vertex;
+            let vertex = self.ptr.add(self.offset as usize) as *mut Vertex;
             let vertex = &mut (*vertex);
             vertex.position = pos;
             vertex.normal = normal;
@@ -65,14 +75,23 @@ impl VBO {
 
             self.offset += size_of::<Vertex>() as u64;
         }
-        self.dirty = true;
     }
 
     pub fn bind(&self, vulkan: &Vulkan, command_buffer: VkCommandBuffer) {
+        if self.staging {
+            eprintln!("MOUNTING STAGING VBO, UNSTABLE BEHAVIOUR")
+        }
         vulkan.bind_vertex_buffers(command_buffer, 0, vec![VertexBufferParameters {
-            buffer: *self.device_buffer.get(),
+            buffer: *self.buffer,
             offset: 0,
         }]);
     }
 }
 
+impl Drop for VBO {
+    fn drop(&mut self) {
+        if self.staging {
+            unsafe { vmaUnmapMemory(self.buffer.info.allocator(), self.buffer.info.alloc) }
+        }
+    }
+}

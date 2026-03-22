@@ -5,12 +5,12 @@ use crate::engine::pipelines::create_pipelines_multithreaded;
 use crate::engine::shapes::AABB::{SimpleAABox, AABB4};
 use crate::engine::{FrameInfo, PerFrameResource, PerImageResource, Settings, WinitHandler};
 use crate::prelude::*;
-use crate::vulkan::func::{Destructible, Vulkan};
+use crate::vulkan::func::Vulkan;
 use crate::vulkan::gltf::scene::Scene;
 use crate::vulkan::gltf::utils::StagingBuffer;
 use egui::Context;
-use winit::keyboard::KeyCode;
 use ultraviolet::Vec3;
+use winit::keyboard::KeyCode;
 
 const MAX_FRAMES_IN_FLIGHT: usize = 3;
 #[derive(Default)]
@@ -107,7 +107,6 @@ impl RenderLoop {
 
         //prepare
 
-        staging.destroy(vulkan);
         self.prepared = true;
     }
 
@@ -194,17 +193,18 @@ impl RenderLoop {
         unsafe { vkQueuePresentKHR(self.present_queue, &present_info) };
 
         //GUI
-        let raw_input = frame_info.raw_input;
-        let full_output = ctx.run(raw_input, |ctx| {
-            egui::CentralPanel::default().show(&ctx, |ui| {
-                ui.label("Hello world!");
-                if ui.button("Click me").clicked() {
-                    dbg!("Clicked!");
-                }
-            });
-        });
-        handler.handle_output(full_output.platform_output);
-        let clipped_primitives = ctx.tessellate(full_output.shapes, full_output.pixels_per_point);
+        // TODO: Move to another thread
+        // let raw_input = frame_info.raw_input;
+        // let full_output = ctx.run(raw_input, |ctx| {
+        //     egui::CentralPanel::default().show(&ctx, |ui| {
+        //         ui.label("Hello world!");
+        //         if ui.button("Click me").clicked() {
+        //             dbg!("Clicked!");
+        //         }
+        //     });
+        // });
+        // handler.handle_output(full_output.platform_output);
+        // let clipped_primitives = ctx.tessellate(full_output.shapes, full_output.pixels_per_point);
         //self.gui_renderer.render_primitives(vulkan, clipped_primitives);
 
         self.current_frame = (current_frame + 1) % MAX_FRAMES_IN_FLIGHT;

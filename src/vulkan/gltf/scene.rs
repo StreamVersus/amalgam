@@ -11,23 +11,24 @@ type SizedBuffer = NSize<VkDestroy<VkBuffer>>;
 pub struct Scene {
     pub ubo: UniformBuffer,
 
-    pub vbo: VBO,
+    pub device_vbo: VBO,
+    pub staging_vbo: VBO,
     pub idx: SizedBuffer,
     pub indirect_buffer: SizedBuffer,
     pub material_ssbo: SizedBuffer,
     pub model_ssbo: SizedBuffer,
 
-    pub(crate) parameters: NSize<Vec<IndirectParameters>>,
+    pub parameters: NSize<Vec<IndirectParameters>>,
     pub descriptors: PooledDescriptors,
 
     pub indices: Vec<u16>,
 
-    pub(crate) texture_images: Vec<Image>,
+    pub texture_images: Vec<Image>,
     pub model_matrices: Vec<Mat4>,
     pub material_ranges: Vec<MaterialID>,
 
-    pub(crate) _samplers: Vec<VkDestroy<VkSampler>>,
-    pub(crate) _memory: Vec<VkDestroy<VkDeviceMemory>>,
+    pub _samplers: Vec<VkDestroy<VkSampler>>,
+    pub _memory: Vec<VkDestroy<VkDeviceMemory>>,
 }
 
 pub struct Node {

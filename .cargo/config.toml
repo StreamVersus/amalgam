@@ -7,6 +7,7 @@ jobs = 16
 [target.x86_64-unknown-linux-gnu]
 rustflags = [
     "-C", "link-arg=-fuse-ld=mold",
+    "-C", "target-feature=+avx,+fma,+sse"
 ]
 
 [target.aarch64-linux-android]
@@ -20,7 +21,8 @@ rustflags = ["-C", "target-feature=+atomics,+bulk-memory"]
 rustflags = ["-C", "opt-level=z", "--cfg", "web_sys_unstable_apis"]
 
 [target.x86_64-pc-windows-msvc]
-linker = "lld"
+ar = "llvm-lib"
+linker = "lld-link"
 rustflags = [
     "-Lnative=/home/stream/.xwin/crt/lib/x86_64",
     "-Lnative=/home/stream/.xwin/sdk/lib/um/x86_64",
@@ -30,9 +32,6 @@ rustflags = [
 [profile.dev]
 incremental = true
 codegen-backend = "cranelift"
-debug = 1
-split-debuginfo = "unpacked"
-strip = "debuginfo"
 lto = false
 
 [profile.release]
@@ -44,4 +43,9 @@ panic = "abort"
 overflow-checks = false
 debug-assertions = false
 strip = true
-rustflags = ["-C", "target-cpu=x86-64-v3"]
+
+[env]
+CC_x86_64_pc_windows_msvc = "clang-cl"
+CXX_x86_64_pc_windows_msvc = "clang-cl"
+AR_x86_64_pc_windows_msvc = "llvm-lib"
+XWIN_DIR="/home/stream/.xwin"

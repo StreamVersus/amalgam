@@ -32,7 +32,7 @@ impl Vulkan {
             applicationVersion: 1,
             pEngineName: engine_name.as_ptr() as *const c_char,
             engineVersion: 1,
-            apiVersion: ApiVersion::new(ENGINE_MAJOR_VERSION, ENGINE_MINOR_VERSION, ENGINE_PATCH_VERSION).into(),
+            apiVersion: self.get_api_version().into(),
             ..Default::default()
         };
 

@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::ffi::{c_char, c_void};
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
-use vulkan_raw::{vkCreateDevice, vkDestroyDevice, vkEnumerateDeviceExtensionProperties, vkEnumeratePhysicalDevices, vkGetPhysicalDeviceFeatures, vkGetPhysicalDeviceFormatProperties, vkGetPhysicalDeviceMemoryProperties, vkGetPhysicalDeviceProperties, ApiVersion, VkBool32, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo, VkExtensionProperties, VkFormat, VkFormatProperties, VkPhysicalDevice, VkPhysicalDeviceFeatures, VkPhysicalDeviceMemoryProperties, VkPhysicalDeviceProperties, VkPhysicalDeviceVulkan12Features, VkQueue};
+use vulkan_raw::{vkCreateDevice, vkDestroyDevice, vkEnumerateDeviceExtensionProperties, vkEnumeratePhysicalDevices, vkGetPhysicalDeviceFeatures, vkGetPhysicalDeviceFeatures2, vkGetPhysicalDeviceFormatProperties, vkGetPhysicalDeviceMemoryProperties, vkGetPhysicalDeviceProperties, ApiVersion, VkBool32, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo, VkExtensionProperties, VkFormat, VkFormatProperties, VkPhysicalDevice, VkPhysicalDeviceCoherentMemoryFeaturesAMD, VkPhysicalDeviceFeatures, VkPhysicalDeviceFeatures2, VkPhysicalDeviceMemoryPriorityFeaturesEXT, VkPhysicalDeviceMemoryProperties, VkPhysicalDeviceProperties, VkPhysicalDeviceVulkan12Features, VkPhysicalDeviceVulkan13Features, VkQueue};
 
 impl Vulkan {
     pub fn get_devices(&self) -> Vec<VkPhysicalDevice> {
@@ -59,20 +59,43 @@ impl Vulkan {
     }
     
     pub fn get_physical_device_info(&self, device: VkPhysicalDevice) -> DeviceInfo {
-        let mut features: MaybeUninit<VkPhysicalDeviceFeatures> = MaybeUninit::uninit();
+        let mut features13 = VkPhysicalDeviceVulkan13Features {
+            ..Default::default()
+        };
+        let mut features12 = VkPhysicalDeviceVulkan12Features {
+            pNext:  &mut features13 as *mut _ as *mut c_void,
+            ..Default::default()
+        };
+        let mut memory_priority = VkPhysicalDeviceMemoryPriorityFeaturesEXT {
+            pNext: &mut features12 as *mut _ as *mut c_void,
+            ..Default::default()
+        };
+        let mut coherent_memory = VkPhysicalDeviceCoherentMemoryFeaturesAMD {
+            pNext: &mut memory_priority as *mut _ as *mut c_void,
+            ..Default::default()
+        };
+
+        let mut features: VkPhysicalDeviceFeatures2 = VkPhysicalDeviceFeatures2 {
+            pNext: &mut coherent_memory as *mut _ as *mut c_void,
+            ..Default::default()
+        };
         let mut properties: MaybeUninit<VkPhysicalDeviceProperties> = MaybeUninit::uninit();
 
         unsafe {
-            vkGetPhysicalDeviceFeatures(device, features.as_mut_ptr());
+            vkGetPhysicalDeviceFeatures2(device, &mut features);
             vkGetPhysicalDeviceProperties(device, properties.as_mut_ptr());
         }
 
-        let features: VkPhysicalDeviceFeatures = unsafe { features.assume_init() };
         let properties: VkPhysicalDeviceProperties = unsafe { properties.assume_init() };
-        
+
         DeviceInfo {
-            features,
+            features: features.features,
             properties,
+
+            coherent_memory,
+            features12,
+            features13,
+            memory_priority,
         }
     }
 
@@ -92,16 +115,6 @@ impl Vulkan {
                 continue;
             }
 
-            let mut device_info = self.get_physical_device_info(device);
-            if device_info.features.geometryShader != VkBool32::TRUE || device_info.features.multiDrawIndirect != VkBool32::TRUE {
-                continue;
-            }
-            else {
-                device_info.features = VkPhysicalDeviceFeatures::default();
-
-                device_info.features.geometryShader = VkBool32::TRUE;
-                device_info.features.multiDrawIndirect = VkBool32::TRUE;
-            };
             let queue_info = self.build_desired_queue_info(device);
             let queue_create_info: Vec<VkDeviceQueueCreateInfo> = queue_info
                 .iter()
@@ -122,9 +135,45 @@ impl Vulkan {
             let mut layers: Vec<*const c_char> = vec![];
             layers.push(c"VK_AMD_anti_lag".as_ptr() as *const c_char);
 
+            let mut device_info = self.get_physical_device_info(device);
+            if device_info.features.geometryShader != VkBool32::TRUE || device_info.features.multiDrawIndirect != VkBool32::TRUE {
+                continue;
+            }
+            else {
+                device_info.features = VkPhysicalDeviceFeatures::default();
+
+                device_info.features.geometryShader = VkBool32::TRUE;
+                device_info.features.multiDrawIndirect = VkBool32::TRUE;
+            };
+
+            if device_info.features13.dynamicRendering != VkBool32::TRUE || device_info.features13.synchronization2 != VkBool32::TRUE {
+                println!("Device does not support dynamicRendering/synchronization2");
+                continue;
+            };
+            let mut features13 = VkPhysicalDeviceVulkan13Features {
+                dynamicRendering: VkBool32::TRUE,
+                synchronization2: VkBool32::TRUE,
+                ..Default::default()
+            };
+            let mut memory_priority = VkPhysicalDeviceMemoryPriorityFeaturesEXT {
+                pNext: &mut features13 as *mut _ as *mut c_void,
+                memoryPriority: device_info.memory_priority.memoryPriority,
+                ..Default::default()
+            };
+            let mut coherent_features = VkPhysicalDeviceCoherentMemoryFeaturesAMD {
+                pNext: &mut memory_priority as *mut _ as *mut c_void,
+                deviceCoherentMemory: device_info.coherent_memory.deviceCoherentMemory,
+                ..Default::default()
+            };
+
+            if device_info.features12.vulkanMemoryModel != VkBool32::TRUE {
+                println!("Device does not support Vulkan memory model");
+                continue;
+            }
             let vulkan_12_features = VkPhysicalDeviceVulkan12Features {
-                pNext: null_mut(),
+                pNext: &mut coherent_features as *mut _ as *mut c_void,
                 vulkanMemoryModel: VkBool32::TRUE,
+                bufferDeviceAddress: device_info.features12.bufferDeviceAddress,
                 ..Default::default()
             };
 
@@ -146,7 +195,6 @@ impl Vulkan {
             let memory_properties = self.get_memory_properties(device);
 
             let device_info = self.get_physical_device_info(device);
-            
             let loaded_device = LoadedDevice {
                 logical_device,
                 device,
@@ -191,6 +239,11 @@ impl Vulkan {
 pub struct DeviceInfo {
     pub features: VkPhysicalDeviceFeatures,
     pub properties: VkPhysicalDeviceProperties,
+
+    pub coherent_memory: VkPhysicalDeviceCoherentMemoryFeaturesAMD,
+    pub features12: VkPhysicalDeviceVulkan12Features,
+    pub features13: VkPhysicalDeviceVulkan13Features,
+    pub memory_priority: VkPhysicalDeviceMemoryPriorityFeaturesEXT,
 }
 #[derive(Debug, Clone)]
 pub struct LoadedDevice {

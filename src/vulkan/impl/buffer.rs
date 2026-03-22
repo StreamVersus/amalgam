@@ -3,7 +3,7 @@ use crate::vulkan::utils::BufferUsage;
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
 use std::ptr::null_mut;
-use vulkan_raw::{vkBindBufferMemory, vkBindBufferMemory2, vkCmdCopyBuffer, vkCmdCopyBufferToImage, vkCmdPipelineBarrier, vkCreateBuffer, vkCreateBufferView, vkDestroyBuffer, vkDestroyBufferView, vkGetBufferMemoryRequirements, vkGetBufferMemoryRequirements2, VkAccessFlags, VkBindBufferMemoryInfo, VkBuffer, VkBufferCopy, VkBufferCreateInfo, VkBufferImageCopy, VkBufferMemoryBarrier, VkBufferMemoryRequirementsInfo2, VkBufferView, VkBufferViewCreateInfo, VkCommandBuffer, VkDependencyFlags, VkFormat, VkFormatFeatureFlags, VkImage, VkImageLayout, VkMemoryDedicatedRequirements, VkMemoryRequirements, VkMemoryRequirements2, VkPipelineStageFlags, VkResult, VkSharingMode, VkVersion, VK_WHOLE_SIZE};
+use vulkan_raw::{vkBindBufferMemory, vkBindBufferMemory2, vkCmdCopyBuffer, vkCmdCopyBufferToImage, vkCmdPipelineBarrier, vkCmdPipelineBarrier2, vkCreateBuffer, vkCreateBufferView, vkDestroyBuffer, vkDestroyBufferView, vkGetBufferMemoryRequirements, vkGetBufferMemoryRequirements2, VkAccessFlags, VkAccessFlags2, VkBindBufferMemoryInfo, VkBuffer, VkBufferCopy, VkBufferCreateInfo, VkBufferImageCopy, VkBufferMemoryBarrier, VkBufferMemoryBarrier2, VkBufferMemoryRequirementsInfo2, VkBufferView, VkBufferViewCreateInfo, VkCommandBuffer, VkDependencyFlags, VkDependencyInfo, VkDeviceSize, VkFormat, VkFormatFeatureFlags, VkImage, VkImageLayout, VkMemoryDedicatedRequirements, VkMemoryRequirements, VkMemoryRequirements2, VkPipelineStageFlags, VkPipelineStageFlags2, VkResult, VkSharingMode, VkStructureType, VkVersion, VK_WHOLE_SIZE};
 
 impl Vulkan {
     pub fn create_buffer(&self, size: u64, buffer_usage: BufferUsage) -> Result<VkBuffer, VkResult> {
@@ -54,13 +54,27 @@ impl Vulkan {
         }
     }
 
-    pub fn transition_buffers(&self, transition_info: Vec<BufferTransition>, command_buffer: VkCommandBuffer, generating_stages: VkPipelineStageFlags, consuming_stages: VkPipelineStageFlags) {
-        let mut buffer_barriers: Vec<VkBufferMemoryBarrier> = Vec::with_capacity(transition_info.len());
-        for transition in transition_info {
-            buffer_barriers.push(transition.into());
-        }
-        
-        unsafe{ vkCmdPipelineBarrier(command_buffer, generating_stages, consuming_stages, VkDependencyFlags::empty(), 0, null_mut(), buffer_barriers.len() as u32, buffer_barriers.as_ptr(), 0, null_mut()); };
+    pub fn transition_buffers(
+        &self,
+        transition_info: Vec<BufferTransition>,
+        command_buffer: VkCommandBuffer
+    ) {
+        if transition_info.is_empty() { return; }
+
+        let buffer_barriers: Vec<VkBufferMemoryBarrier2> = transition_info
+            .into_iter()
+            .map(|t| t.into())
+            .collect();
+
+        let dependency_info = VkDependencyInfo {
+            dependencyFlags: VkDependencyFlags::empty(),
+            memoryBarrierCount: 0,
+            bufferMemoryBarrierCount: buffer_barriers.len() as u32,
+            pBufferMemoryBarriers: buffer_barriers.as_ptr(),
+            ..Default::default()
+        };
+
+        unsafe { vkCmdPipelineBarrier2(command_buffer, &dependency_info); }
     }
     
     pub fn create_buffer_view(&self, buffer: VkBuffer, format: VkFormat, offset: u64, range: u64) -> VkBufferView {
@@ -130,7 +144,7 @@ impl Vulkan {
         self.create_buffer(size, usage.storage_buffer(true)).expect("Failed to create buffer")
     }
     
-    pub fn buffer_to_buffer(&self, regions: Vec<VkBufferCopy>, command_buffer: VkCommandBuffer, src_buffer: VkBuffer, dst_buffer: VkBuffer) {
+    pub fn buffer_to_buffer(&self, regions: &[VkBufferCopy], command_buffer: VkCommandBuffer, src_buffer: VkBuffer, dst_buffer: VkBuffer) {
         if !regions.is_empty() {
             unsafe { vkCmdCopyBuffer(command_buffer, src_buffer, dst_buffer, regions.len() as u32, regions.as_ptr()); };
         }
@@ -162,38 +176,44 @@ impl Vulkan {
 
 pub struct BufferTransition {
     pub buffer: VkBuffer,
-    pub current_access: VkAccessFlags,
-    pub new_access: VkAccessFlags,
-    pub current_queue_family_index: u32,
-    pub new_queue_family_index: u32,
-    pub size: u64,
-    pub offset: u64,
+    pub offset: VkDeviceSize,
+    pub size: VkDeviceSize,
+    pub src_stage: VkPipelineStageFlags2,
+    pub dst_stage: VkPipelineStageFlags2,
+    pub src_access: VkAccessFlags2,
+    pub dst_access: VkAccessFlags2,
+    pub src_queue_family: u32,
+    pub dst_queue_family: u32,
 }
 
 impl Default for BufferTransition {
     fn default() -> Self {
         BufferTransition {
             buffer: VkBuffer::none(),
-            current_access: VkAccessFlags::empty(),
-            new_access: VkAccessFlags::empty(),
-            current_queue_family_index: 0,
-            new_queue_family_index: 0,
             size: VK_WHOLE_SIZE,
+            src_stage: Default::default(),
+            dst_stage: Default::default(),
+            src_access: Default::default(),
+            dst_access: Default::default(),
+            src_queue_family: 0,
             offset: 0,
+            dst_queue_family: 0,
         }
     }
 }
 
-impl From<BufferTransition> for VkBufferMemoryBarrier {
-    fn from(value: BufferTransition) -> Self {
-        VkBufferMemoryBarrier {
-            srcAccessMask: value.current_access,
-            dstAccessMask: value.new_access,
-            srcQueueFamilyIndex: value.current_queue_family_index,
-            dstQueueFamilyIndex: value.new_queue_family_index,
-            buffer: value.buffer,
-            offset: value.offset,
-            size: value.size,
+impl Into<VkBufferMemoryBarrier2> for BufferTransition {
+    fn into(self) -> VkBufferMemoryBarrier2 {
+        VkBufferMemoryBarrier2 {
+            srcStageMask: self.src_stage,
+            srcAccessMask: self.src_access,
+            dstStageMask: self.dst_stage,
+            dstAccessMask: self.dst_access,
+            srcQueueFamilyIndex: self.src_queue_family,
+            dstQueueFamilyIndex: self.dst_queue_family,
+            buffer: self.buffer,
+            offset: self.offset,
+            size: self.size,
             ..Default::default()
         }
     }

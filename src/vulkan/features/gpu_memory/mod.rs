@@ -1,22 +1,43 @@
-use crate::prelude::MemoryInfo;
+use std::ffi::c_void;
 use crate::vulkan::func::{Destructible, Vulkan};
-use std::collections::HashMap;
-use std::ops::Deref;
+use std::ops::{Deref};
 use vulkan_raw::{VkBindBufferMemoryInfo, VkBindImageMemoryInfo, VkBuffer, VkDeviceMemory, VkImage, VkMemoryDedicatedAllocateInfo, VkMemoryPropertyFlags, VkMemoryRequirements};
 use crate::vulkan::utils::align_up;
 
-// pub mod pool_alloc;
+pub mod pool_alloc;
 pub mod arena_alloc;
 
-pub trait Allocator<S: AllocationStorage> {
-    fn allocate(&self, flags: VkMemoryPropertyFlags, storage: S, vulkan: &Vulkan) -> AllocationInfo;
-    fn device(&self, storage: S, vulkan: &Vulkan) -> AllocationInfo {
+pub trait AllocationInfo<M, D>: Default {
+    fn store_buffer_info(&mut self, buffer: VkBuffer, info: M);
+    fn store_image_info(&mut self, image: VkImage, info: M);
+    fn merge_mut(&mut self, allocation_info: Self);
+    fn pull_buffer_info(&self, buffer: &VkBuffer) -> &M;
+    fn pull_image_info(&self, image: &VkImage) -> &M;
+    fn get_all_memory_objects(&self) -> Vec<D>;
+    fn get_all_info(&self) -> Vec<M>;
+
+    fn merge(allocation_info: Self) -> Self {
+        let mut info = Self::default();
+        info.merge_mut(allocation_info);
+        info
+    }
+
+    fn merge_all(allocation_infos: Vec<Self>) -> Self {
+        let mut info = Self::default();
+        allocation_infos.into_iter().for_each(|all_info| info.merge_mut(all_info));
+        info
+    }
+}
+
+pub trait Allocator<S: AllocationStorage, I: AllocationInfo<M, D>, M, D> {
+    fn allocate(&self, flags: VkMemoryPropertyFlags, storage: S, vulkan: &Vulkan) -> I;
+    fn device(&self, storage: S, vulkan: &Vulkan) -> I {
         self.allocate(VkMemoryPropertyFlags::DEVICE_LOCAL_BIT, storage, vulkan)
     }
-    fn host_cached(&self, storage: S, vulkan: &Vulkan) -> AllocationInfo {
+    fn host_cached(&self, storage: S, vulkan: &Vulkan) -> I {
         self.allocate(VkMemoryPropertyFlags::HOST_VISIBLE_BIT | VkMemoryPropertyFlags::HOST_CACHED_BIT, storage, vulkan)
     }
-    fn host_coherent(&self, storage: S, vulkan: &Vulkan) -> AllocationInfo {
+    fn host_coherent(&self, storage: S, vulkan: &Vulkan) -> I {
         self.allocate(VkMemoryPropertyFlags::HOST_VISIBLE_BIT | VkMemoryPropertyFlags::HOST_COHERENT_BIT, storage, vulkan)
     }
 }
@@ -121,86 +142,17 @@ impl BatchedStorage {
     }
 }
 
-#[derive(Default)]
-pub struct AllocationInfo {
-    buffer_info: HashMap<VkBuffer, MemoryInfo>,
-    image_info: HashMap<VkImage, MemoryInfo>,
-}
-
-impl AllocationInfo {
-    pub fn store_buffer_info(&mut self, size: u64, info: VkBindBufferMemoryInfo) {
-        self.buffer_info.insert(info.buffer, MemoryInfo {
-            memory_object: info.memory,
-            offset: info.memoryOffset,
-            data_size: size,
-        });
-    }
-
-    pub fn store_image_info(&mut self, size: u64, info: VkBindImageMemoryInfo) {
-        self.image_info.insert(info.image, MemoryInfo {
-            memory_object: info.memory,
-            offset: info.memoryOffset,
-            data_size: size,
-        });
-    }
-
-    pub fn merge_mut(&mut self, allocation_info: AllocationInfo) {
-        self.buffer_info.extend(allocation_info.buffer_info);
-        self.image_info.extend(allocation_info.image_info);
-    }
-
-    pub fn merge(allocation_info: AllocationInfo) -> Self {
-        let mut info = AllocationInfo::default();
-        info.merge_mut(allocation_info);
-        info
-    }
-
-    pub fn merge_all(allocation_infos: Vec<AllocationInfo>) -> Self {
-        let mut info = AllocationInfo::default();
-        allocation_infos.into_iter().for_each(|all_info| info.merge_mut(all_info));
-        info
-    }
-
-    pub fn pull_buffer_info(&self, buffer: &VkBuffer) -> MemoryInfo {
-        *self.buffer_info.get(buffer).unwrap()
-    }
-
-    pub fn pull_image_info(&self, image: &VkImage) -> MemoryInfo {
-        *self.image_info.get(image).unwrap()
-    }
-
-    pub fn get_all_memory_objects(&self) -> Vec<VkDeviceMemory> {
-        let mut memory_objects = Vec::with_capacity(self.buffer_info.len() + self.image_info.len());
-
-        self.buffer_info.iter().for_each(|(_, info)| {
-            memory_objects.push(info.memory_object);
-        });
-        self.image_info.iter().for_each(|(_, info)| {
-            memory_objects.push(info.memory_object);
-        });
-
-        memory_objects
-    }
-
-    pub fn get_all_info(&self) -> Vec<MemoryInfo> {
-        let mut images: Vec<MemoryInfo> = self.image_info.values().cloned().collect();
-        let buffers: Vec<MemoryInfo> = self.buffer_info.values().cloned().collect();
-        images.extend(buffers);
-
-        images
-    }
-}
-pub trait Allocatable: Send + Sync {
+pub trait Allocatable<T>: Send + Sync {
     fn get_memory_requirements(&self, vulkan: &Vulkan) -> (VkMemoryRequirements, bool);
 
     fn push_into(self, buffs: &mut Vec<VkBuffer>, imgs: &mut Vec<VkImage>);
 
-    fn add_bind_task(&self, buff_tasks: &mut Vec<VkBindBufferMemoryInfo>, img_tasks: &mut Vec<VkBindImageMemoryInfo>, info: &mut AllocationInfo, memory: VkDeviceMemory, offset: u64, size: u64);
+    fn build_bind_task(&self, memory: VkDeviceMemory, offset: u64) -> T;
 
     fn dedicated(&self) -> VkMemoryDedicatedAllocateInfo;
 }
 
-impl Allocatable for VkBuffer {
+impl Allocatable<VkBindBufferMemoryInfo> for VkBuffer {
     fn get_memory_requirements(&self, vulkan: &Vulkan) -> (VkMemoryRequirements, bool) {
         vulkan.get_buffer_memory_requirements(self)
     }
@@ -209,15 +161,13 @@ impl Allocatable for VkBuffer {
         buffs.push(self);
     }
 
-    fn add_bind_task(&self, buff_tasks: &mut Vec<VkBindBufferMemoryInfo>, _: &mut Vec<VkBindImageMemoryInfo>, info: &mut AllocationInfo, memory: VkDeviceMemory, offset: u64, size: u64) {
-        let task = VkBindBufferMemoryInfo {
+    fn build_bind_task(&self, memory: VkDeviceMemory, offset: u64) -> VkBindBufferMemoryInfo {
+        VkBindBufferMemoryInfo {
             buffer: *self,
             memory,
             memoryOffset: offset,
             ..Default::default()
-        };
-        buff_tasks.push(task);
-        info.store_buffer_info(size, task);
+        }
     }
 
     fn dedicated(&self) -> VkMemoryDedicatedAllocateInfo {
@@ -238,7 +188,7 @@ impl AllocationStorage for Vec<VkBuffer> {
     }
 }
 
-impl Allocatable for VkImage {
+impl Allocatable<VkBindImageMemoryInfo> for VkImage {
     fn get_memory_requirements(&self, vulkan: &Vulkan) -> (VkMemoryRequirements, bool) {
         vulkan.get_image_memory_requirements(self)
     }
@@ -247,15 +197,13 @@ impl Allocatable for VkImage {
         imgs.push(self);
     }
 
-    fn add_bind_task(&self, _: &mut Vec<VkBindBufferMemoryInfo>, img_tasks: &mut Vec<VkBindImageMemoryInfo>, info: &mut AllocationInfo, memory: VkDeviceMemory, offset: u64, size: u64) {
-        let task = VkBindImageMemoryInfo {
+    fn build_bind_task(&self, memory: VkDeviceMemory, offset: u64) -> VkBindImageMemoryInfo {
+        VkBindImageMemoryInfo {
             image: *self,
             memory,
             memoryOffset: offset,
             ..Default::default()
-        };
-        img_tasks.push(task);
-        info.store_image_info(size, task);
+        }
     }
 
     fn dedicated(&self) -> VkMemoryDedicatedAllocateInfo {
@@ -306,4 +254,12 @@ impl<T: Destructible + Default + PartialEq> Deref for VkDestroy<T> {
     fn deref(&self) -> &Self::Target {
         &self.object
     }
+}
+
+pub trait MemoryInfo<T: ?Sized> {
+    fn memory_object(&self) -> T;
+    fn data_size(&self) -> u64;
+    fn map_memory(&self, vulkan: &Vulkan) -> *mut c_void;
+    fn unmap_memory(&self, vulkan: &Vulkan);
+    fn flush_memory(&self, vulkan: &Vulkan) -> bool;
 }

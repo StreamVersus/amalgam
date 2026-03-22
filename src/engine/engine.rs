@@ -155,7 +155,7 @@ impl PerImageResource {
         } else {
             None
         };
-        let memory = vulkan.allocator.device(device_storage, vulkan).get_all_memory_objects();
+        let memory = vulkan.arena().device(device_storage, vulkan).get_all_memory_objects();
         let memory_storage = memory.into_iter().map(|memory| {
             VkDestroy::new(memory, vulkan)
         }).collect();

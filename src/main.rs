@@ -10,7 +10,7 @@ pub mod both;
 pub mod pipeline_presets;
 pub mod prelude;
 
-fn main() -> Result<(),Box<dyn Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     create_window(Settings {
         width: 1200,
         height: 900,

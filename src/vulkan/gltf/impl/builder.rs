@@ -1,6 +1,5 @@
-use crate::engine::buffers::ubo::{UniformBuffer, MATRICES_SIZE};
+use crate::engine::buffers::ubo::UniformBuffer;
 use crate::engine::buffers::vbo::VBO;
-use crate::engine::buffers::virtual_buffer::VirtualBuffer;
 use crate::engine::utils::obj_n_size::NSize;
 use crate::prelude::*;
 use crate::vulkan::func::Vulkan;
@@ -49,7 +48,8 @@ impl Scene {
 
         let idx_buffer = vulkan.create_buffer(idx_size, BufferUsage::preset_index()).unwrap();
 
-        let mut vbo = VBO::new(&vulkan, vbo_size);
+        let device_vbo = VBO::new(&vulkan, vbo_size, false);
+        let mut staging_vbo = VBO::new(&vulkan, vbo_size, true);
         let mut indices = Vec::with_capacity(idx_size as usize / size_of::<u16>());
         let mut meshes: HashMap<u32, Mesh> = HashMap::with_capacity(gltf.meshes.len());
         gltf.meshes.iter().enumerate().for_each(|(mesh_id, mesh)| {
@@ -58,7 +58,7 @@ impl Scene {
                 let attr = primitive.attributes;
                 let vertex_amount = resolve_vertices(&gltf, attr) as usize;
                 for i in 0..vertex_amount {
-                    resolve_vertex(&gltf, attr, i, &bin_chunk.data, &mut vbo);
+                    resolve_vertex(&gltf, attr, i, &bin_chunk.data, &mut staging_vbo);
                 }
 
                 let index_offset = resolve_offset(&gltf, primitive.indices) as usize;
@@ -161,7 +161,7 @@ impl Scene {
 
 
         let main_buffers = vec![idx_buffer, indirect_buffer, model_ssbo, material_ranges_ssbo];
-        let main_buffers_info = vulkan.allocator.device(main_buffers, &vulkan);
+        let main_buffers_info = vulkan.arena().device(main_buffers, &vulkan);
 
         let samplers: Vec<VkSampler> = read_samplers(&vulkan, &gltf);
 
@@ -202,7 +202,7 @@ impl Scene {
 
             (image, rgba, format, resolution)
         }).collect::<Vec<_>>();
-        let texture_image_info = vulkan.allocator.device(imgs, &vulkan);
+        let texture_image_info = vulkan.arena().device(imgs, &vulkan);
 
         let texture_images = texture_images.into_iter().map(|(image, data, format, extent)| {
             let image_view = vulkan.create_image_view(&image, VkImageViewType::IVT_2D, format, VkImageAspectFlags::COLOR_BIT);
@@ -283,12 +283,12 @@ impl Scene {
                 imageLayout: VkImageLayout::UNDEFINED,
             }
         }).collect();
-        let ubo_size = MATRICES_SIZE as u64;
-        let ubo_host_buffer = vulkan.create_buffer(ubo_size, BufferUsage::preset_staging()).unwrap();
-        let ubo_host_info = vulkan.allocator.host_cached(vec![ubo_host_buffer], &vulkan);
 
-        let ubo_device_buffer = vulkan.create_buffer(ubo_size, BufferUsage::default().uniform_buffer(true).transfer_dst(true)).unwrap();
-        let ubo_device_info = vulkan.allocator.device(vec![ubo_device_buffer], &vulkan);
+        let ubo = UniformBuffer::new(
+            Mat4::identity(),
+            Mat4::identity(),
+            &vulkan,
+        );
 
         vulkan.update_descriptor_sets(vec![
             ImageDescriptorInfo {
@@ -318,7 +318,7 @@ impl Scene {
                 },
                 target_descriptor_type: VkDescriptorType::UNIFORM_BUFFER,
                 buffer_infos: vec![VkDescriptorBufferInfo {
-                    buffer: ubo_device_buffer,
+                    buffer: ubo.provide_buffer(),
                     offset: 0,
                     range: VK_WHOLE_SIZE,
                 }],
@@ -353,21 +353,11 @@ impl Scene {
             },
         ], vec![], vec![]);
 
-        let ubo_memory = ubo_host_info.pull_buffer_info(&ubo_host_buffer);
-        let ubo_host_buffer = VirtualBuffer::new(ubo_host_buffer, 0, ubo_size, ubo_memory);
-        let ubo = UniformBuffer::new(
-            Mat4::identity(),
-            Mat4::identity(),
-            ubo_host_buffer,
-            ubo_device_buffer,
-            &vulkan,
-        );
-
         let _samplers = samplers.into_iter().map(|sampler| {
             VkDestroy::new(sampler, &vulkan)
         }).collect::<Vec<_>>();
 
-        let combined_info = AllocationInfo::merge_all(vec![texture_image_info, ubo_host_info, ubo_device_info, main_buffers_info]);
+        let combined_info = AllocationInfo::merge_all(vec![texture_image_info, main_buffers_info]);
         let _memory = combined_info.get_all_memory_objects().into_iter().map(|memory| {
             VkDestroy::new(memory, &vulkan)
         }).collect::<Vec<_>>();
@@ -380,7 +370,8 @@ impl Scene {
 
         let mut scene = Scene {
             ubo,
-            vbo,
+            device_vbo,
+            staging_vbo,
             idx,
             indirect_buffer,
             model_ssbo,

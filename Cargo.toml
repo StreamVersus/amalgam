@@ -53,15 +53,14 @@ winit = { version = "0.31.0-beta.2", features = ["android-native-activity"] }
 android-activity = { version = "0.6.0", features = ["native-activity"] }
 
 [features]
-#default = ["pool_alloc"]
-default = ["wayland"]
+default = ["wayland", "pool_alloc"]
 wayland = [
     "winit/wayland",
 ]
 x11 = [
     "winit/x11",
 ]
-pool_alloc = []
+pool_alloc = ["vulkan_raw/VulkanMemoryAllocator"]
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }

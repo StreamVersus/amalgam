@@ -2,13 +2,8 @@ use cfg_if::cfg_if;
 use ultraviolet::{f32x8, Vec3, Vec3x8};
 
 cfg_if!(
-    if #[cfg(target_arch = "aarch64")] {
-        #[inline]
-        pub fn fast_vec3_recip(v: Vec3) -> Vec3 {
-            fast_vec3_recip_fallback(v)
-        }
-    } else if #[cfg(target_arch = "x86_64")] {
-        use std::arch::x86_64::{_mm_rcp_ps, _mm_set_ps, _mm_storeu_ps, _mm256_fmadd_ps};
+    if #[cfg(target_arch = "x86_64")] {
+        use std::arch::x86_64::{_mm_rcp_ps, _mm_set_ps, _mm_storeu_ps};
 
         #[inline]
         pub fn fast_vec3_recip(v: Vec3) -> Vec3 {
@@ -37,15 +32,21 @@ cfg_if!(
                 Vec3::new(result[0], result[1], result[2])
             }
         }
+    } else {
+        #[inline]
+        pub fn fast_vec3_recip(v: Vec3) -> Vec3 {
+            fast_vec3_recip_fallback(v)
+        }
     }
 );
 
 #[inline(always)]
+#[allow(unreachable_code)]
 fn vfmadd(a: f32x8, b: f32x8, c: f32x8) -> f32x8 {
-    use std::mem::transmute;
-
     #[cfg(all(target_feature="avx", target_feature = "fma"))]
     {
+        use std::mem::transmute;
+        use std::arch::x86_64::_mm256_fmadd_ps;
         unsafe {
             return transmute(_mm256_fmadd_ps(transmute(a), transmute(b), transmute(c)));
         }
@@ -54,6 +55,7 @@ fn vfmadd(a: f32x8, b: f32x8, c: f32x8) -> f32x8 {
     #[cfg(all(not(target_feature="avx"), target_feature = "sse", target_feature = "fma"))]
     unsafe {
         use core::arch::x86_64::*;
+        use std::mem::transmute;
         #[repr(C)]
         struct F32x8Split {
             lower: __m128,
