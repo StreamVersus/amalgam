@@ -33,6 +33,35 @@ macro_rules! null_if_none {
         }
     };
 }
+
+#[macro_export]
+macro_rules! to_mut_void_ptr {
+    ($val:expr) => {
+        &mut $val as *mut _ as *mut c_void
+    };
+}
+
+#[macro_export]
+macro_rules! to_void_ptr {
+    ($val:expr) => {
+        &$val as *const _ as *const c_void
+    };
+}
+
+#[macro_export]
+macro_rules! chain {
+    ($struct_type:tt) => {
+        <$struct_type>::default()
+    };
+
+    ($struct_type:tt, $next:expr) => {
+        $struct_type {
+            pNext: &mut $next as *mut _ as *mut ::std::ffi::c_void,
+            ..Default::default()
+        }
+    };
+}
+
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct BufferUsage {
     transfer_src: bool,
