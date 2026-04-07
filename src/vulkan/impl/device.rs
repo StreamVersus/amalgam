@@ -1,8 +1,9 @@
-use crate::safe_ptr;
+use crate::{chain, safe_ptr};
 use crate::vulkan::func::Vulkan;
 use crate::vulkan::platform::device_extensions;
 use crate::vulkan::r#impl::queues::QueueInfo;
 use crate::vulkan::utils::{null_terminated_str, null_terminated_string};
+use crate::to_mut_void_ptr;
 use std::collections::HashSet;
 use std::ffi::{c_char, c_void};
 use std::mem::MaybeUninit;
@@ -59,28 +60,13 @@ impl Vulkan {
     }
     
     pub fn get_physical_device_info(&self, device: VkPhysicalDevice) -> DeviceInfo {
-        let mut features13 = VkPhysicalDeviceVulkan13Features {
-            ..Default::default()
-        };
-        let mut features12 = VkPhysicalDeviceVulkan12Features {
-            pNext:  &mut features13 as *mut _ as *mut c_void,
-            ..Default::default()
-        };
-        let mut memory_priority = VkPhysicalDeviceMemoryPriorityFeaturesEXT {
-            pNext: &mut features12 as *mut _ as *mut c_void,
-            ..Default::default()
-        };
-        let mut coherent_memory = VkPhysicalDeviceCoherentMemoryFeaturesAMD {
-            pNext: &mut memory_priority as *mut _ as *mut c_void,
-            ..Default::default()
-        };
-
-        let mut features: VkPhysicalDeviceFeatures2 = VkPhysicalDeviceFeatures2 {
-            pNext: &mut coherent_memory as *mut _ as *mut c_void,
-            ..Default::default()
-        };
+        let mut features13 = chain!(VkPhysicalDeviceVulkan13Features);
+        let mut features12 = chain!(VkPhysicalDeviceVulkan12Features, features13);
+        let mut memory_priority = chain!(VkPhysicalDeviceMemoryPriorityFeaturesEXT, features12);
+        let mut coherent_memory = chain!(VkPhysicalDeviceCoherentMemoryFeaturesAMD, memory_priority);
+        let mut features: VkPhysicalDeviceFeatures2 = chain!(VkPhysicalDeviceFeatures2, coherent_memory);
+        
         let mut properties: MaybeUninit<VkPhysicalDeviceProperties> = MaybeUninit::uninit();
-
         unsafe {
             vkGetPhysicalDeviceFeatures2(device, &mut features);
             vkGetPhysicalDeviceProperties(device, properties.as_mut_ptr());
