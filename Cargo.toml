@@ -42,7 +42,7 @@ common = { workspace = true }
 png = { version = "0.18.1", features = ["zlib-rs"] }
 cfg-if = "1.0.4"
 winit = "0.31.0-beta.2"
-egui = "0.33.3"
+egui = "0.34.2"
 
 [build-dependencies]
 prost-build = "0.14"
