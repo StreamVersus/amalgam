@@ -87,7 +87,7 @@ impl ApplicationHandler for App {
                     let cstr = std::ffi::CStr::from_ptr(stats_string);
                     println!("{}", cstr.to_string_lossy());
 
-                    vmaFreeStatsString(self.vulkan.pool().allocator(), stats_string); // must free it
+                    vmaFreeStatsString(self.vulkan.pool().allocator(), stats_string);
 
                     let mut stats = VmaTotalStatistics::default();
                     vmaCalculateStatistics(self.vulkan.pool().allocator(), &mut stats);
@@ -141,11 +141,11 @@ impl ApplicationHandler for App {
                 match event.physical_key {
                     PhysicalKey::Code(key_code) => {
                         if event.state == ElementState::Pressed {
-                            if self.pressed_keys.insert(key_code) {
-                                (self.settings.callbacks.key_pressed)(&mut self.render_loop, key_code);
-                            }
-                        } else if self.pressed_keys.remove(&key_code)  {
+                            (self.settings.callbacks.key_pressed)(&mut self.render_loop, key_code);
+                            self.pressed_keys.insert(key_code);
+                        } else {
                             (self.settings.callbacks.key_released)(&mut self.render_loop, key_code);
+                            self.pressed_keys.remove(&key_code);
                         }
                     }
                     PhysicalKey::Unidentified(key) => eprintln!("Unidentified key {:?}", key),
