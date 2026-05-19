@@ -6,8 +6,6 @@ use crate::prelude::*;
 use crate::vulkan::func::Vulkan;
 use egui::{PlatformOutput, Vec2};
 use std::collections::HashSet;
-use std::ffi::c_char;
-use std::ptr;
 use std::rc::Rc;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -81,7 +79,7 @@ impl ApplicationHandler for App {
 
                 self.vulkan.destroy_surface(self.swapchain_info.surface);
                 self.swapchain_info.surface = VkSurfaceKHR::none();
-
+                #[cfg(feature = "vma_info")]
                 unsafe {
                     let mut stats_string: *mut c_char = ptr::null_mut();
                     vmaBuildStatsString(self.vulkan.pool().allocator(), &mut stats_string, VkBool32::TRUE);

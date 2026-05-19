@@ -60,6 +60,7 @@ x11 = [
 ]
 android = ["winit/android-native-activity", "android-activity"]
 pool_alloc = ["vulkan_raw/VulkanMemoryAllocator"]
+vma_info = []
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
