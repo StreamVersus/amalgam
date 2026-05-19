@@ -222,8 +222,8 @@ impl StagingBuffer {
             buffer: Buffer::default(),
         }
     }
-    
-    pub fn pull(&mut self, size: u64, vulkan: &Vulkan) -> &Buffer {
+
+    pub fn pull(&mut self, size: u64, vulkan: &Vulkan) -> &mut Buffer {
         if self.buffer.info.alloc_info.size < size {
             self.buffer = Buffer::default();
 
@@ -235,14 +235,6 @@ impl StagingBuffer {
             self.buffer = vulkan.pool().allocate_buffer(size, BufferUsage::preset_staging(), alloc_info);
         }
 
-        &self.buffer
-    }
-}
-
-impl Drop for StagingBuffer {
-    fn drop(&mut self) {
-        unsafe {
-            vmaUnmapMemory(self.buffer.info.allocator(), self.buffer.info.alloc);
-        }
+        &mut self.buffer
     }
 }

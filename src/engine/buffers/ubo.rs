@@ -1,10 +1,10 @@
 use crate::prelude::pool_alloc::Buffer;
 use crate::prelude::*;
 use crate::vulkan::func::Vulkan;
+use crate::vulkan::utils::BufferUsage;
 use std::ffi::c_void;
 use ultraviolet::Mat4;
 use vulkan_raw::{VkBufferCopy, VkCommandBuffer, VkDeviceSize};
-use crate::vulkan::utils::BufferUsage;
 
 pub const MATRICES_SIZE: usize = size_of::<Matrices>();
 #[repr(C)]
@@ -34,7 +34,7 @@ impl UniformBuffer {
             ..Default::default()
         };
 
-        let host_buffer = vulkan.pool().allocate_buffer(MATRICES_SIZE as u64, BufferUsage::preset_staging().uniform_buffer(true), alloc_info);
+        let mut host_buffer = vulkan.pool().allocate_buffer(MATRICES_SIZE as u64, BufferUsage::preset_staging().uniform_buffer(true), alloc_info);
         let flags = vulkan.get_loaded_device().memory_properties.memoryTypes[host_buffer.info.alloc_info.memoryType as usize].propertyFlags;
         let device_buffer = if flags.contains(VkMemoryPropertyFlagBits::DEVICE_LOCAL_BIT) {
             None

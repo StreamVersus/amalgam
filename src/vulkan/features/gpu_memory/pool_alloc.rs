@@ -1,11 +1,11 @@
+use crate::prelude::*;
+use crate::prelude::{AllocationInfo, AllocationStorage, Allocator};
+use crate::vulkan::func::{Destructible, Vulkan};
+use crate::vulkan::utils::{BufferUsage, ImageUsage};
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::ops::{Deref, DerefMut};
 use std::ptr::null_mut;
-use crate::prelude::{AllocationInfo, AllocationStorage, Allocator};
-use crate::vulkan::func::{Destructible, Vulkan};
-use crate::prelude::*;
-use crate::vulkan::utils::{BufferUsage, ImageUsage};
 
 #[derive(Default, Debug, Clone)]
 pub struct PoolAllocator {
@@ -100,6 +100,7 @@ impl PoolAllocator {
                 alloc_info: allocation_info,
                 allocator: self.allocator,
             },
+            if_mapped: false,
         }
     }
 
@@ -283,16 +284,40 @@ impl PoolMemoryInfo {
     }
 }
 
-#[derive(Default)]
 pub struct Buffer {
     pub buffer: VkBuffer,
     pub info: PoolMemoryInfo,
+    if_mapped: bool,
 }
 
 impl Drop for Buffer {
     fn drop(&mut self) {
+        if self.buffer == VkBuffer::none() {
+            return;
+        }
+
         if self.info.allocator != VmaAllocator::none() {
+            if self.if_mapped {
+                unsafe { vmaUnmapMemory(self.info.allocator, self.info.alloc) }
+            }
+
             unsafe { vmaDestroyBuffer(self.info.allocator, self.buffer, self.info.alloc) }
+
+            self.buffer = VkBuffer::none();
+        }
+    }
+}
+
+impl Default for Buffer {
+    fn default() -> Self {
+        Self {
+            buffer: VkBuffer::none(),
+            info: PoolMemoryInfo {
+                allocator: VmaAllocator::none(), // Ensure this matches your condition!
+                alloc: unsafe { std::mem::zeroed() },
+                alloc_info: unsafe { std::mem::zeroed() },
+            },
+            if_mapped: false,
         }
     }
 }
@@ -312,7 +337,8 @@ impl DerefMut for Buffer {
 }
 
 impl Buffer {
-    pub fn map_memory(&self, vulkan: &Vulkan) -> *mut c_void {
+    pub fn map_memory(&mut self, vulkan: &Vulkan) -> *mut c_void {
+        self.if_mapped = true;
         self.info.map_memory(vulkan)
     }
 

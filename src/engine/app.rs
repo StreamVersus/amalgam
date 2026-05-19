@@ -6,6 +6,7 @@ use crate::prelude::*;
 use crate::vulkan::func::Vulkan;
 use egui::{PlatformOutput, Vec2};
 use std::collections::HashSet;
+use std::ffi::c_char;
 use std::ptr;
 use std::rc::Rc;
 use winit::application::ApplicationHandler;
@@ -73,6 +74,8 @@ impl ApplicationHandler for App {
         self.egui.handle_window_event(event.clone());
         match event {
             WindowEvent::CloseRequested => {
+                self.vulkan.device_wait();
+
                 self.vulkan.destroy_swapchain(self.swapchain_info.swapchain);
                 self.swapchain_info.swapchain = VkSwapchainKHR::none();
 
@@ -80,7 +83,7 @@ impl ApplicationHandler for App {
                 self.swapchain_info.surface = VkSurfaceKHR::none();
 
                 unsafe {
-                    let mut stats_string: *mut i8 = ptr::null_mut();
+                    let mut stats_string: *mut c_char = ptr::null_mut();
                     vmaBuildStatsString(self.vulkan.pool().allocator(), &mut stats_string, VkBool32::TRUE);
 
                     let cstr = std::ffi::CStr::from_ptr(stats_string);
@@ -103,7 +106,6 @@ impl ApplicationHandler for App {
                     println!("unused range max:   {}", stats.total.unusedRangeSizeMax);
                 }
 
-                self.vulkan.device_wait();
                 self.render_loop = RenderLoop::default();
                 
                 self.vulkan.pool().finish();

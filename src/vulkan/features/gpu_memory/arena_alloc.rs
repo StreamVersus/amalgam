@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use std::ffi::c_void;
 use crate::prelude::*;
 use crate::vulkan::features::gpu_memory::Allocatable;
 use crate::vulkan::func::Vulkan;
 use crate::vulkan::utils::align_up;
+use std::collections::{HashMap, HashSet};
+use std::ffi::c_void;
 
 #[derive(Default, Debug, Clone)]
 pub struct ArenaAllocator {}
@@ -123,16 +123,16 @@ impl AllocationInfo<ArenaMemoryInfo, VkDeviceMemory> for ArenaAllocationInfo {
     }
 
     fn get_all_memory_objects(&self) -> Vec<VkDeviceMemory> {
-        let mut memory_objects = Vec::with_capacity(self.buffer_info.len() + self.image_info.len());
+        let mut unique_memory = HashSet::with_capacity(self.buffer_info.len() + self.image_info.len());
 
         self.buffer_info.iter().for_each(|(_, info)| {
-            memory_objects.push(info.memory_object);
+            unique_memory.insert(info.memory_object);
         });
         self.image_info.iter().for_each(|(_, info)| {
-            memory_objects.push(info.memory_object);
+            unique_memory.insert(info.memory_object);
         });
 
-        memory_objects
+        unique_memory.into_iter().collect()
     }
 
     fn get_all_info(&self) -> Vec<ArenaMemoryInfo> {

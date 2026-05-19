@@ -18,11 +18,11 @@ impl Vulkan {
         
         descriptor_set_layout
     }
-    
-    pub fn create_descriptor_pool(&self, descriptor_types: &[VkDescriptorPoolSize], max_sets_count: u32, free_individual_sets: bool) -> VkDescriptorPool {
+
+    pub fn create_descriptor_pool(&self, descriptor_types: &[VkDescriptorPoolSize], max_sets_count: u32, free: bool) -> VkDescriptorPool {
         let descriptor_pool_create_info = VkDescriptorPoolCreateInfo {
             flags: {
-                if free_individual_sets {
+                if free {
                     VkDescriptorPoolCreateFlags::FREE_DESCRIPTOR_SET_BIT
                 } else { 
                     VkDescriptorPoolCreateFlags::empty()
@@ -241,7 +241,7 @@ impl PooledDescriptors {
     pub fn new(descriptor_layouts: Vec<VkDescriptorSetLayout>,
                descriptor_sizes: Vec<VkDescriptorPoolSize>,
                 vulkan: &Vulkan) -> Self {
-        let descriptor_pool = vulkan.create_descriptor_pool(&descriptor_sizes, descriptor_layouts.len() as u32, false);
+        let descriptor_pool = vulkan.create_descriptor_pool(&descriptor_sizes, descriptor_layouts.len() as u32, true);
         let descriptor_sets = vulkan.allocate_descriptor_sets(descriptor_pool, &descriptor_layouts);
         Self {
             descriptor_layouts,

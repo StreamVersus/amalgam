@@ -1,10 +1,10 @@
-use std::ffi::c_void;
-use std::ptr::null_mut;
+use crate::prelude::pool_alloc::Buffer;
 use crate::prelude::*;
 use crate::vulkan::func::Vulkan;
-use crate::vulkan::utils::BufferUsage;
-use crate::prelude::pool_alloc::Buffer;
 use crate::vulkan::gltf::scene::Vertex;
+use crate::vulkan::utils::BufferUsage;
+use std::ffi::c_void;
+use std::ptr::null_mut;
 
 #[derive(Default)]
 pub struct VBO {
@@ -23,7 +23,7 @@ impl VBO {
             flags: VmaAllocationCreateFlagBits::HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
             ..Default::default()
         };
-        let buffer = pool.allocate_buffer(size, if staging {BufferUsage::preset_staging()} else {BufferUsage::preset_vertex()}, alloc_info);
+        let mut buffer = pool.allocate_buffer(size, if staging { BufferUsage::preset_staging() } else { BufferUsage::preset_vertex() }, alloc_info);
         let ptr = if staging {buffer.map_memory(vulkan)} else {null_mut()};
         Self {
             buffer,
@@ -85,13 +85,5 @@ impl VBO {
             buffer: *self.buffer,
             offset: 0,
         }]);
-    }
-}
-
-impl Drop for VBO {
-    fn drop(&mut self) {
-        if self.staging {
-            unsafe { vmaUnmapMemory(self.buffer.info.allocator(), self.buffer.info.alloc) }
-        }
     }
 }

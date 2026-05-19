@@ -57,7 +57,9 @@ impl RenderLoop {
         };
 
         let swapchain_images = vulkan.get_images(swapchain);
-        self.per_image_resources = Vec::with_capacity(swapchain_images.len());
+        if self.per_image_resources.len() != 0 {
+            eprintln!("PIRs not empty on recreate")
+        }
 
         swapchain_images.into_iter().for_each(|image| {
             self.per_image_resources.push(PerImageResource::new(vulkan, image, swapchain.format.format, extent, self.samples, *self.render_pass.get()));
@@ -115,8 +117,13 @@ impl RenderLoop {
             return;
         }
         if self.extent.width != swapchain.width || self.extent.height != swapchain.height {
+            vulkan.device_wait();
+            self.per_image_resources.clear();
+
             self.extent.height = swapchain.height;
+            self.extent.width = swapchain.width;
             vulkan.create_swapchain(swapchain);
+
             self.recreate_framebuffers(vulkan, swapchain);
             self.scene.ubo.set_proj(self.camera.projection_matrix());
         }

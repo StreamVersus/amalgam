@@ -1,14 +1,13 @@
-use crate::{chain, safe_ptr};
 use crate::vulkan::func::Vulkan;
 use crate::vulkan::platform::device_extensions;
 use crate::vulkan::r#impl::queues::QueueInfo;
 use crate::vulkan::utils::{null_terminated_str, null_terminated_string};
-use crate::to_mut_void_ptr;
+use crate::{chain, safe_ptr};
 use std::collections::HashSet;
 use std::ffi::{c_char, c_void};
 use std::mem::MaybeUninit;
 use std::ptr::{null, null_mut};
-use vulkan_raw::{vkCreateDevice, vkDestroyDevice, vkEnumerateDeviceExtensionProperties, vkEnumeratePhysicalDevices, vkGetPhysicalDeviceFeatures, vkGetPhysicalDeviceFeatures2, vkGetPhysicalDeviceFormatProperties, vkGetPhysicalDeviceMemoryProperties, vkGetPhysicalDeviceProperties, ApiVersion, VkBool32, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo, VkExtensionProperties, VkFormat, VkFormatProperties, VkPhysicalDevice, VkPhysicalDeviceCoherentMemoryFeaturesAMD, VkPhysicalDeviceFeatures, VkPhysicalDeviceFeatures2, VkPhysicalDeviceMemoryPriorityFeaturesEXT, VkPhysicalDeviceMemoryProperties, VkPhysicalDeviceProperties, VkPhysicalDeviceVulkan12Features, VkPhysicalDeviceVulkan13Features, VkQueue};
+use vulkan_raw::{vkCreateDevice, vkDestroyDevice, vkEnumerateDeviceExtensionProperties, vkEnumeratePhysicalDevices, vkGetPhysicalDeviceFeatures2, vkGetPhysicalDeviceFormatProperties, vkGetPhysicalDeviceMemoryProperties, vkGetPhysicalDeviceProperties, ApiVersion, VkBool32, VkDevice, VkDeviceCreateInfo, VkDeviceQueueCreateInfo, VkExtensionProperties, VkFormat, VkFormatProperties, VkPhysicalDevice, VkPhysicalDeviceCoherentMemoryFeaturesAMD, VkPhysicalDeviceFeatures, VkPhysicalDeviceFeatures2, VkPhysicalDeviceMemoryPriorityFeaturesEXT, VkPhysicalDeviceMemoryProperties, VkPhysicalDeviceProperties, VkPhysicalDeviceVulkan12Features, VkPhysicalDeviceVulkan13Features, VkQueue};
 
 impl Vulkan {
     pub fn get_devices(&self) -> Vec<VkPhysicalDevice> {
@@ -119,7 +118,6 @@ impl Vulkan {
 
             #[allow(unused_mut)]
             let mut layers: Vec<*const c_char> = vec![];
-            layers.push(c"VK_AMD_anti_lag".as_ptr() as *const c_char);
 
             let mut device_info = self.get_physical_device_info(device);
             if device_info.features.geometryShader != VkBool32::TRUE || device_info.features.multiDrawIndirect != VkBool32::TRUE {
