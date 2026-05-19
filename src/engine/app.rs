@@ -71,7 +71,7 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &dyn ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         self.egui.handle_window_event(event.clone());
         match event {
-            WindowEvent::CloseRequested => {
+            WindowEvent::CloseRequested | WindowEvent::Destroyed => {
                 self.vulkan.device_wait();
 
                 self.vulkan.destroy_swapchain(self.swapchain_info.swapchain);
@@ -130,9 +130,14 @@ impl ApplicationHandler for App {
                     }
                     self.pressed_keys.clear();
                 }
+
                 self.focused = focused;
             }
             WindowEvent::KeyboardInput { device_id: _device_id, event, is_synthetic: _is_synthetic } => {
+                if event.repeat {
+                    return;
+                }
+
                 match event.physical_key {
                     PhysicalKey::Code(key_code) => {
                         if event.state == ElementState::Pressed {
@@ -155,7 +160,7 @@ impl ApplicationHandler for App {
                 (self.settings.callbacks.render)(&mut self.render_loop, &mut self.vulkan, &mut self.swapchain_info, &mut self.egui.ctx, self.handler.as_mut().unwrap(), frame_info);
                 self.delta.sleep_till_next_frame();
                 self.window.as_ref().unwrap().request_redraw();
-            }
+            },
             _ => (),
         }
     }
