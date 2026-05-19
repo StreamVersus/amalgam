@@ -7,12 +7,11 @@ description.workspace = true
 authors.workspace = true
 
 [lib]
-crate-type = ["rlib", "cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [workspace]
 resolver = "3"
 members = [".", "vulkan_raw", "shaders/fragment", "shaders/vertex" , "shaders/common"]
-exclude = ["android"]
 
 [workspace.package]
 version = "0.1.1"
@@ -25,6 +24,8 @@ vulkan_raw = { path = "vulkan_raw" }
 fragment = { path = "shaders/fragment" }
 vertex = { path = "shaders/vertex" }
 common = { path = "shaders/common" }
+spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "66b7eb3922f042becb223cfa83f088e7be42d608" }
+spirv-builder = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "66b7eb3922f042becb223cfa83f088e7be42d608", default-features = false, features = ["use-installed-tools"] }
 
 [dependencies]
 prost = "0.14.3"
@@ -43,14 +44,11 @@ png = { version = "0.18.1", features = ["zlib-rs"] }
 cfg-if = "1.0.4"
 winit = "0.31.0-beta.2"
 egui = "0.34.2"
+android-activity = { version = "0.6.0", features = ["native-activity"], optional = true }
 
 [build-dependencies]
 prost-build = "0.14"
-spirv-builder = { git = "https://github.com/Rust-GPU/rust-gpu", default-features = false, features = ["use-installed-tools"] }
-
-[target.'cfg(target_os = "android")'.dependencies]
-winit = { version = "0.31.0-beta.2", features = ["android-native-activity"] }
-android-activity = { version = "0.6.0", features = ["native-activity"] }
+spirv-builder = { workspace = true }
 
 [features]
 default = ["wayland", "pool_alloc"]
@@ -60,6 +58,7 @@ wayland = [
 x11 = [
     "winit/x11",
 ]
+android = ["winit/android-native-activity", "android-activity"]
 pool_alloc = ["vulkan_raw/VulkanMemoryAllocator"]
 
 [dev-dependencies]

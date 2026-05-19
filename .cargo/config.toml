@@ -1,9 +1,6 @@
 [unstable]
 codegen-backend = true
 
-[build]
-jobs = 16
-
 [target.x86_64-unknown-linux-gnu]
 rustflags = [
     "-C", "link-arg=-fuse-ld=mold",
@@ -35,16 +32,18 @@ codegen-backend = "cranelift"
 lto = false
 
 [profile.release]
-incremental = true
+incremental = false
 opt-level = 3
-codegen-units = 1
-lto = "fat"
+lto = "thin"
 panic = "abort"
 overflow-checks = false
 debug-assertions = false
 strip = true
 
 [env]
+CC_aarch64_linux_android = "/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang"
+CXX_aarch64_linux_android = "/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++"
+AR_aarch64_linux_android = "/opt/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 CC_x86_64_pc_windows_msvc = "clang-cl"
 CXX_x86_64_pc_windows_msvc = "clang-cl"
 AR_x86_64_pc_windows_msvc = "llvm-lib"

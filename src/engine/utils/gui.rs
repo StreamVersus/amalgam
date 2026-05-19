@@ -1,6 +1,6 @@
 use egui::{Context, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, RawInput, Rect, Vec2, ViewportId, ViewportInfo};
 use winit::cursor::{Cursor, CursorIcon};
-use winit::event::{DeviceEvent, ElementState, MouseScrollDelta, WindowEvent};
+use winit::event::{DeviceEvent, ElementState, MouseScrollDelta, TouchPhase, WindowEvent};
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 #[derive(Default)]
@@ -74,7 +74,7 @@ impl EGuiMediator {
                     modifiers: self.modifiers,
                 });
             },
-            WindowEvent::MouseWheel { delta, .. } => {
+            WindowEvent::MouseWheel { delta, phase, .. } => {
                 let (delta, unit) = match delta {
                     MouseScrollDelta::LineDelta(x, y) => {
                         (Vec2::new(x, y) * 20.0, MouseWheelUnit::Line)
@@ -83,7 +83,14 @@ impl EGuiMediator {
                         (Vec2::new(pos.x as f32, pos.y as f32) / self.scale, MouseWheelUnit::Point)
                     }
                 };
-                self.raw_input.events.push(egui::Event::MouseWheel { unit, delta, modifiers: self.modifiers});
+
+                let phase: egui::TouchPhase = match phase {
+                    TouchPhase::Started => egui::TouchPhase::Start,
+                    TouchPhase::Moved => egui::TouchPhase::Move,
+                    TouchPhase::Ended => egui::TouchPhase::End,
+                    TouchPhase::Cancelled => egui::TouchPhase::Cancel,
+                };
+                self.raw_input.events.push(egui::Event::MouseWheel { unit, delta, phase, modifiers: self.modifiers });
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let pressed = event.state == ElementState::Pressed;
