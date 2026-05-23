@@ -8,8 +8,8 @@ use crate::vulkan::gltf::scene::{check_length, check_magic, raw_to_chunks, Mater
 use crate::vulkan::gltf::scene::{Image, Mesh, Node, Primitive, Scene};
 use crate::vulkan::gltf::utils::{read_samplers, resolve_amount, resolve_mesh, resolve_offset, resolve_size, resolve_vertex, resolve_vertices, ImageFormat, IndirectParameters, StagingBuffer};
 use crate::vulkan::utils::{build_pool_size, BufferUsage, ImageUsage};
-use fragment::{SAMPLER_LIMIT, TEXTURE_LIMIT};
 use png::Decoder;
+use shaders::{SAMPLER_LIMIT, TEXTURE_LIMIT};
 use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::ptr::null_mut;

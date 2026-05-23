@@ -1,0 +1,11 @@
+[package]
+name = "shaders"
+version.workspace = true
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+
+[dependencies]
+fragment = { workspace = true }
+vertex = { workspace = true }
+common = { workspace = true }
