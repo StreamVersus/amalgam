@@ -9,7 +9,6 @@ use crate::vulkan::gltf::scene::{Image, Mesh, Node, Primitive, Scene};
 use crate::vulkan::gltf::utils::{read_samplers, resolve_amount, resolve_mesh, resolve_offset, resolve_size, resolve_vertex, resolve_vertices, ImageFormat, IndirectParameters, StagingBuffer};
 use crate::vulkan::utils::{build_pool_size, BufferUsage, ImageUsage};
 use png::Decoder;
-use shaders::{SAMPLER_LIMIT, TEXTURE_LIMIT};
 use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::ptr::null_mut;
@@ -218,9 +217,6 @@ impl Scene {
                 extent,
             }
         }).collect::<Vec<_>>();
-
-        assert!(gltf.textures.len() <= TEXTURE_LIMIT);
-        assert!(samplers.len() <= SAMPLER_LIMIT);
 
         let indirect_description_bindings = [
             VkDescriptorSetLayoutBinding {

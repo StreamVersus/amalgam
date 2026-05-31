@@ -1,11 +1,9 @@
 #![no_std]
 #![allow(unexpected_cfgs)]
-use spirv_std::glam::{Vec2, Vec4};
-use spirv_std::image::Image2d;
-use spirv_std::{spirv, Sampler};
 
-pub const TEXTURE_LIMIT: usize = 2048;
-pub const SAMPLER_LIMIT: usize = 16;
+use spirv_std::glam::{Vec2, Vec4};
+use spirv_std::{spirv, RuntimeArray, Sampler};
+use spirv_std::image::Image2d;
 
 #[repr(C)]
 pub struct Material {
@@ -17,12 +15,14 @@ pub struct Material {
 pub fn main(
     output: &mut Vec4,
     in_tex_coords: Vec2,
-    #[spirv(descriptor_set = 1, binding = 0)] textures: &[Image2d; TEXTURE_LIMIT],
-    #[spirv(descriptor_set = 1, binding = 1)] samplers: &[Sampler; SAMPLER_LIMIT],
+    #[spirv(descriptor_set = 1, binding = 0)] textures: &RuntimeArray<Image2d>,
+    #[spirv(descriptor_set = 1, binding = 1)] samplers: &RuntimeArray<Sampler>,
     #[spirv(flat)] in_instance_index: usize,
     #[spirv(storage_buffer, descriptor_set = 1, binding = 4)] materials: &[Material]
 ) {
     let material = &materials[in_instance_index];
-    let color: Vec4 = textures[material.source_id as usize].sample(samplers[material.sampler_id as usize], in_tex_coords);
-    *output = color;
+    unsafe {
+        let color: Vec4 = textures.index(material.source_id as usize).sample(*samplers.index(material.sampler_id as usize), in_tex_coords);
+        *output = color;
+    }
 }

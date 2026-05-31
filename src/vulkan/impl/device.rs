@@ -150,13 +150,14 @@ impl Vulkan {
                 ..Default::default()
             };
 
-            if device_info.features12.vulkanMemoryModel != VkBool32::TRUE {
-                println!("Device does not support Vulkan memory model");
+            if device_info.features12.vulkanMemoryModel != VkBool32::TRUE || device_info.features12.runtimeDescriptorArray != VkBool32::TRUE {
+                println!("Device does not support Vulkan memory model/Runtime Descriptor Array");
                 continue;
             }
             let vulkan_12_features = VkPhysicalDeviceVulkan12Features {
                 pNext: &mut coherent_features as *mut _ as *mut c_void,
                 vulkanMemoryModel: VkBool32::TRUE,
+                runtimeDescriptorArray: VkBool32::TRUE,
                 bufferDeviceAddress: device_info.features12.bufferDeviceAddress,
                 ..Default::default()
             };

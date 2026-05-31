@@ -94,7 +94,7 @@ impl Scene {
             dstOffset: 0,
             size: (self.material_ranges.len() * size_of::<MaterialID>()) as VkDeviceSize,
         }], one_time_command_buffer, **staging_buffer, *self.material_ssbo.get());
-        //offset += (self.material_ranges.len() * size_of::<MaterialID>()) as VkDeviceSize;
+        //offset += (self.material_ranges.len() * size_of::<MaterialID>()) as VkDeviceSize; // uncomment to add new strides
 
         // Transition and copy images
         let transitions = self.texture_images.iter().map(|image| {
