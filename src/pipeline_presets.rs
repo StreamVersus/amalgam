@@ -2,8 +2,7 @@ use crate::prelude::*;
 use crate::vulkan::func::{bool_to_vkbool, Destructible, Vulkan};
 use vulkan_raw::{VkBlendFactor, VkBlendOp, VkBool32, VkColorComponentFlags, VkCompareOp, VkCullModeFlags, VkDescriptorSetLayout, VkDynamicState, VkExtent2D, VkFrontFace, VkLogicOp, VkPipelineLayout, VkPipelineShaderStageCreateFlags, VkPolygonMode, VkPrimitiveTopology, VkRenderPass, VkSampleCountFlagBits, VkSampleCountFlags, VkShaderModule, VkShaderStageFlags, VkStencilOp, VkStencilOpState};
 
-const VERTEX_SHADER: &[u8] = include_bytes!(env!("vertex.spv"));
-const FRAGMENT_SHADER: &[u8] = include_bytes!(env!("fragment.spv"));
+const SHADERS: &[u8] = include_bytes!(env!("shaders.spv"));
 
 #[derive(Default)]
 pub struct PipelineContainer {
@@ -30,8 +29,7 @@ pub fn preset_graphic_pipeline(vulkan: &Vulkan, width: u32, height: u32, render_
 
     let layout = vulkan.create_pipeline_layout(descriptor_set_layouts, push_constant_ranges);
 
-    let vertex_shader_module = vulkan.create_shader_module(VERTEX_SHADER);
-    let frag_shader_module = vulkan.create_shader_module(FRAGMENT_SHADER);
+    let shader_module = vulkan.create_shader_module(SHADERS);
 
     let info = GraphicsPipelineCreateInfo {
         flags: Default::default(),
@@ -39,15 +37,15 @@ pub fn preset_graphic_pipeline(vulkan: &Vulkan, width: u32, height: u32, render_
             PipelineShaderStageCreateInfo {
                 flags: VkPipelineShaderStageCreateFlags::empty(),
                 stage: VkShaderStageFlags::VERTEX_BIT,
-                module: vertex_shader_module,
-                name: "main",
+                module: shader_module,
+                name: "main_vert",
                 specialization_info: None,
             },
             PipelineShaderStageCreateInfo {
                 flags: VkPipelineShaderStageCreateFlags::empty(),
                 stage: VkShaderStageFlags::FRAGMENT_BIT,
-                module: frag_shader_module,
-                name: "main",
+                module: shader_module,
+                name: "main_frag",
                 specialization_info: None,
             },
         ],
@@ -154,7 +152,7 @@ pub fn preset_graphic_pipeline(vulkan: &Vulkan, width: u32, height: u32, render_
         layout,
         info,
 
-        shaders: vec![frag_shader_module, vertex_shader_module],
+        shaders: vec![shader_module],
         vulkan: vulkan.clone(),
     }
 }

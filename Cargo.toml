@@ -11,7 +11,7 @@ crate-type = ["cdylib", "rlib"]
 
 [workspace]
 resolver = "3"
-members = [".", "vulkan_raw", "shaders/fragment", "shaders/vertex", "shaders/common", "shaders"]
+members = [".", "vulkan_raw", "shaders"]
 
 [workspace.package]
 version = "0.1.1"
@@ -21,12 +21,9 @@ edition = "2024"
 
 [workspace.dependencies]
 vulkan_raw = { path = "vulkan_raw" }
-fragment = { path = "shaders/fragment" }
-vertex = { path = "shaders/vertex" }
-common = { path = "shaders/common" }
 shaders = { path = "shaders" }
-spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "66b7eb3922f042becb223cfa83f088e7be42d608" }
-spirv-builder = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "66b7eb3922f042becb223cfa83f088e7be42d608", default-features = false, features = ["use-installed-tools"] }
+spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "36e3348cdc2f824afec64b3b5af5d369d98a4c0d" }
+spirv-builder = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "36e3348cdc2f824afec64b3b5af5d369d98a4c0d", default-features = false, features = ["use-installed-tools"] }
 
 [dependencies]
 prost = "0.14.3"
