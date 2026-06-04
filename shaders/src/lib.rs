@@ -45,8 +45,9 @@ pub fn main_frag(
     #[spirv(storage_buffer, descriptor_set = 1, binding = 4)] materials: &[Material],
 ) {
     let material = &materials[in_instance_index];
-    unsafe {
-        let color: Vec4 = textures.index(material.source_id as usize).sample(*samplers.index(material.sampler_id as usize), in_tex_coords);
-        *output = color;
-    }
+    let color: Vec4 = unsafe {
+        textures.index(material.source_id as usize).sample(*samplers.index(material.sampler_id as usize), in_tex_coords)
+    };
+
+    *output = color;
 }
