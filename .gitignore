@@ -1,9 +1,21 @@
-/target
-hos.glb
+# IDE Garbage
 .idea
-cache.storage
-src/cache.storage
+
+# Caches
+.xwin-cache
+*cache.storage
+
+# Targets
+/target
 shaders/target
 shaders/vertex/target
 shaders/src/fragment/target
 android/target
+
+# Configure garbage
+.cargo/
+/autom4te.cache
+/config.log
+/config.status
+/configure
+*~
