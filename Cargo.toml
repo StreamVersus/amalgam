@@ -22,8 +22,8 @@ edition = "2024"
 [workspace.dependencies]
 vulkan_raw = { path = "vulkan_raw" }
 shaders = { path = "shaders" }
-spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "36e3348cdc2f824afec64b3b5af5d369d98a4c0d" }
-spirv-builder = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "36e3348cdc2f824afec64b3b5af5d369d98a4c0d", default-features = false, features = ["use-installed-tools"] }
+spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "99e43ad5eeee7d539102c9ec6c605a65fdf9f6df" }
+spirv-builder = { git = "https://github.com/Rust-GPU/rust-gpu", rev = "99e43ad5eeee7d539102c9ec6c605a65fdf9f6df", default-features = false, features = ["use-installed-tools"] }
 
 [dependencies]
 prost = "0.14.3"
